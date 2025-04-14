@@ -1,0 +1,37 @@
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "wheel",
+    "cibuildwheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beacon-py"
+version = "1.0.0.dev0"  # CI will replace this during nightly build
+description = "Python interface wrapper for interacting with Beacon Nodes."
+readme = "README.md"
+requires-python = ">=3.7"
+license = { text = "Apache-2.0" }
+
+authors = [
+  { name = "Robin Kooyman", email = "robin@maris.nl" }
+]
+
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache-2.0 License",
+  "Operating System :: OS Independent"
+]
+
+dependencies = [
+  # e.g. "requests>=2.0.0"
+]
+
+[tool.setuptools]
+packages = ["beacon_py"]  # OR use find if you prefer
+
+[tool.cibuildwheel]
+# Build all CPython versions (skip PyPy, Python 3.6)
+build = "cp3*-*"
+skip = "cp36-* pp*"
