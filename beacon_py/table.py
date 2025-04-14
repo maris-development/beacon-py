@@ -1,55 +1,30 @@
+from __future__ import annotations
 from typing import Dict, Optional, Union
 from sqlalchemy import *
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.orm import Mapped, mapped_column
-from __future__ import annotations
+from sqlalchemy.orm import Mapped, mapped_column, registry
 import pyarrow as pa
 
-arrow_type_map = {
-    "int8": pa.int8(),
-    "int16": pa.int16(),
-    "int32": pa.int32(),
-    "int64": pa.int64(),
-    
-    "uint8": pa.uint8(),
-    "uint16": pa.uint16(),
-    "uint32": pa.uint32(),
-    "uint64": pa.uint64(),
-    
-    "float16": pa.float16(),
-    "float32": pa.float32(),
-    "float64": pa.float64(),
-    
-    "string": pa.string(),
-    "binary": pa.binary(),
-    "bool": pa.bool_(),
-    "timestamp_ms": pa.timestamp('ms'),
-    "timestamp_ns": pa.timestamp('ns'),
-    "timestamp_us": pa.timestamp('us')
-}
+mapper_registry = registry()
 
-# Map Arrow Types to Sql Alchemy , and Python types
-arrow_sql_alchemy_types = {
-    pa.int8() : (Integer,int),
-    pa.int16() : (Integer,int),
-    pa.int32() : (Integer,int),
-    pa.int64() : (BigInteger,int),
+arrow_alchemy_type = {
+    "int8": (Integer,int),
+    "int16":(Integer,int),
+    "int32": (Integer,int),
+    "int64": (Integer,int),
     
-    pa.uint8() : (Integer,int),
-    pa.uint16() : (Integer,int),
-    pa.uint32() : (Integer,int),
-    pa.uint64() : (BigInteger,int),
+    "uint8": (Integer,int),
+    "uint16": (Integer,int),
+    "uint32": (Integer,int),
+    "uint64": (Integer,int),
     
-    pa.float16() : (Float,float),
-    pa.float32() : (Float,float),
-    pa.float64() : (Float,float),
+    "float16": (Float,float),
+    "float32": (Float,float),
+    "float64": (Float,float),
     
-    pa.string() : (String, str),
-    pa.binary() : (LargeBinary, bytes),
-    pa.bool_() : (Boolean, bool),
-    pa.timestamp('ms'): (DateTime, "datetime"),
-    pa.timestamp('ns'): (DateTime, "datetime"),
-    pa.timestamp('us'): (DateTime, "datetime")
+    "utf8": (String, str),
+    "binary": (LargeBinary, bytes),
+    "boolean": (Boolean, bool),
 }
 
 # SQLAlchemy base class
@@ -62,32 +37,34 @@ def replacer(node):
         return getattr(model, "__tvf__", node)  # use __tvf__ if present, else original
     return node
 
-def build_model_from_json(config: dict):
-    table_name = config.get("table")
-    function_name = config.get("function")
-    file_arg = config.get("file")
-    columns = config["columns"]
+def build_data_table(table_name: str,schema_json: str) -> type:
+    if table_name in QueryableDataTable.metadata.tables:
+        QueryableDataTable.metadata.remove(QueryableDataTable.metadata.tables[table_name])
+    
+    
+    # Dynamically build attributes for the ORM class
+    attrs = {"__tablename__": table_name}
+    attrs['_stub'] = Column(Integer, nullable=True, primary_key=True)
 
-    attrs = {
-        "__annotations__": {},
-    }
+    for field in schema_json["fields"]:
+        name = field["name"]
+        
+        dtype = field["data_type"]
+        nullable = field.get("nullable", True)
+        
+        if isinstance(dtype, str):
+            dtype = dtype.lower()
+            (col_type, py_type) = arrow_alchemy_type[dtype]
+        elif isinstance(dtype, dict) and "Timestamp" in dtype:
+            col_type = DateTime
+            py_type = "datetime.datetime"
+        else:
+            col_type = String
+            py_type = str
+        
+        
+        # Add type hint for autocomplete (e.g., in VSCode or PyCharm)
+        attrs[name] = Column(col_type, nullable=nullable)
 
-    column_names = list(columns.keys())
-
-    # Determine which "FROM" source to use
-    if table_name:
-        attrs["__tablename__"] = table_name
-    elif function_name and file_arg:
-        tvf = getattr(func, function_name)(file_arg).table_valued(*column_names)
-        attrs["__tvf__"] = tvf
-        attrs["__tablename__"] = f"{function_name}()"  # for introspection/debug
-    else:
-        raise ValueError("Must provide either 'table' or both 'function' and 'file'.")
-
-    for col_name, type_str in columns.items():
-        sa_type, py_type = arrow_type_map[type_str]
-        attrs["__annotations__"][col_name] = Mapped[py_type]
-        attrs[col_name] = mapped_column(sa_type)
-
-    table_name = table_name or file_arg.stem
-    return type((table_name), (QueryableDataTable,), attrs)
+    new_class = type(table_name, (QueryableDataTable,), attrs)
+    return new_class
