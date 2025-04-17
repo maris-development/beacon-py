@@ -4,9 +4,12 @@ from sqlalchemy.orm import DeclarativeMeta
 from sqlalchemy.dialects import postgresql
 import requests
 from requests import Session
-from table import build_data_table
 from io import BytesIO
 import pandas as pd
+
+
+from .table import build_data_table
+
 
 class Client:
     def __init__(self, url: str, proxy_headers: dict=None):
@@ -62,11 +65,6 @@ class Client:
         datasets = response.json()
         return datasets
     
-    def default_table(self) -> table.QueryableDataTable:
-        """Get the default table"""
-        endpoint = f"{self.url}/api/default-table"
-        pass
-    
     def table(self, table_name: str) -> type:
         """Get a QueryableDataTable object"""
         endpoint = f"{self.url}/api/table-schema"
@@ -74,18 +72,35 @@ class Client:
         table = build_data_table(table_name,response.json())
         return table
     
-    def dataset(self, dataset_name: str) -> table.QueryableDataTable:
-        """Get a QueryableDataTable object"""
-        endpoint = f"{self.url}/api/dataset-schema"
-        response = self.session.get(endpoint, params={"file": dataset_name})
-        table = table.build_data_table(response.json())
-        return table
+    def sql_to_df(self, sql: str) -> pd.DataFrame:
+        """Convert SQL to a pandas DataFrame"""
+        # Send the SQL query to the server
+        endpoint = f"{self.url}/api/query"
+        response = self.session.post(endpoint, json={
+            "sql": sql,
+            "output": {
+                "format": "parquet"
+            }
+        })
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to execute query: {response.status_code}-{response.text} with sql: {sql}")
+        
+        # Convert the response to a pandas DataFrame
+        bytes = response.content
+        df = pd.read_parquet(BytesIO(bytes))
+        
+        return df
     
-    def query_to_pandas(self, statement: Select) -> pd.DataFrame:
+    def query_to_df(self, statement: Select, debug: bool = false) -> pd.DataFrame:
         """Query to a pandas DataFrame"""
         # Convert the SQLAlchemy statement to a string
         compiled_query = str(statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
-        print(compiled_query)
+        
+        if debug:
+            print("Compiled query:")
+            print(compiled_query)
+        
         # Send the query to the server
         endpoint = f"{self.url}/api/query"
         response = self.session.post(endpoint, json={
@@ -96,10 +111,9 @@ class Client:
         })
         
         if response.status_code != 200:
-            raise Exception(f"Failed to execute query: {response.text}")
+            raise Exception(f"Failed to execute query: {response.status_code}-{response.text} with statement: {statement}")
         
         # Convert the response to a pandas DataFrame
-        print(len(response.content))
         bytes = response.content
         df = pd.read_parquet(BytesIO(bytes))
         

@@ -26,6 +26,9 @@ classifiers = [
 
 dependencies = [
   # e.g. "requests>=2.0.0"
+  "requests>=2.0.0",
+  "pandas>=2.0.0",
+  "sqlalchemy>=2.0.0",
 ]
 
 [tool.setuptools]
