@@ -1,4 +1,4 @@
 from .client import Client
-from .table import build_data_table
+from .table import DataTable
 
-__all__ = ["Client"]
+__all__ = ["Client", "DataTable"]
