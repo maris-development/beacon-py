@@ -1,8 +1,10 @@
 name: Nightly Release
 
 on:
-    schedule:
-        - cron: "0 2 * * *" # Runs every day at 2 AM UTC
+    # Run when you push any tag
+    push:
+        tags:
+            - "*"
     workflow_dispatch: # Allows manual trigger
 
 jobs:
@@ -13,6 +15,14 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v3
 
+            - name: Determine version from tag
+              id: get_version
+              run: |
+                  # Strip off the "refs/tags/" prefix to get just "1.2.3" (or whatever you tagged)
+                  VERSION=${GITHUB_REF#refs/tags/}
+                  echo "Version is $VERSION"
+                  echo "::set-output name=version::$VERSION"
+
             - name: Set up Python
               uses: actions/setup-python@v4
               with:
@@ -22,11 +32,10 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   python -m pip install build
-
             - name: Update version for nightly
               run: |
                   DATE=$(date +'%Y%m%d')
-                  sed -i "s/version = .*/version = \"1.0.0.dev$DATE\"/" pyproject.toml
+                  sed -i "s/version = .*/version = \"${{ steps.get_version.outputs.version }}\"/" pyproject.toml
 
             - name: Build pure Python wheel
               run: python -m build --wheel --outdir dist
