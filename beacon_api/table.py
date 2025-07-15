@@ -2,9 +2,9 @@ from __future__ import annotations
 import datetime
 from typing import Dict, Optional, Union
 import pyarrow as pa
-from requests import Session
 
-from beacon_api.query import AndFilter, Query, RangeFilter
+from .session import BaseBeaconSession
+from .query import AndFilter, Query, RangeFilter
 
 arrow_py_type = {
     "int8": int,
@@ -34,7 +34,7 @@ arrow_py_type = {
 
 class DataTable:
     # Constructor for DataTable
-    def __init__(self, http_session: Session, table_name: str):
+    def __init__(self, http_session: BaseBeaconSession, table_name: str):
         self.http_session = http_session
         self.table_name = table_name
         
@@ -51,7 +51,7 @@ class DataTable:
         """Get the description of the table"""
         return self.description if self.description else "No description available"    
     
-    def get_table_schema(self) -> Dict[str, type]:
+    def get_table_schema(self) -> dict[str, type]:
         """Get the schema of the table"""
         pa_schema = self.get_table_schema_arrow()
         if pa_schema:
@@ -95,10 +95,26 @@ class DataTable:
         """Get the type of the table"""
         return self.table_type
     
-    def peek(self, longitude_column: str, latitude_column: str, time_column: str, depth_column: str, columns: list[str],
+    
+    def subset(self, longitude_column: str, latitude_column: str, time_column: str, depth_column: str, columns: list[str],
                          bbox: Optional[tuple[float, float, float, float]] = None,
                          depth_range: Optional[tuple[float, float]] = None,
                          time_range: Optional[tuple[datetime.datetime, datetime.datetime]] = None) -> Query:
+        """
+        Create a query to subset the table based on the provided parameters.
+        
+        Args:
+            longitude_column: Name of the column containing longitude values.
+            latitude_column: Name of the column containing latitude values.
+            time_column: Name of the column containing time values.
+            depth_column: Name of the column containing depth values.
+            columns: List of additional columns to include in the query.
+            bbox: Optional bounding box defined as (min_longitude, min_latitude, max_longitude, max_latitude).
+            depth_range: Optional range for depth defined as (min_depth, max_depth).
+            time_range: Optional range for time defined as (start_time, end_time).
+        Returns
+            A Query object that can be executed to retrieve the subset of data.
+        """
         query = self.query()
         query.add_select_column(longitude_column)
         query.add_select_column(latitude_column)

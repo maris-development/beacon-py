@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "beacon-api"
-version = "1.0.0.dev1"  # CI will replace this during nightly build
+version = "1.0.0"  # CI will replace this during nightly build
 description = "Python interface wrapper for interacting with Beacon Nodes."
 readme = "README.md"
 requires-python = ">=3.7"
@@ -26,18 +26,27 @@ classifiers = [
 ]
 
 dependencies = [
-  # e.g. "requests>=2.0.0"
   "requests>=2.0.0",
   "pandas>=2.0.0",
   "pyarrow >= 19.0.1",
   "networkx >= 3.0.0",
   "matplotlib >= 3.0.0",
   "xarray >= 2025.1.0",
-  "netcdf >= 1.7.2"
+  "netCDF4 >= 1.5.0",
+  "geopandas >= 1.1.0",
+  "typing_extensions >= 4.10.0",
+  "lonboard >= 0.10.4",
+  "palettable >= 3.3.0",
 ]
 
-[tool.setuptools]
-packages = ["beacon_api"]  # OR use find if you prefer
+# [tool.setuptools]
+# packages = ["beacon_api"]  # OR use find if you prefer
+
+[tool.setuptools.packages.find]
+include = ["beacon_api*"]
+
+[tool.setuptools.package-data]
+"beacon_api" = ["py.typed", "*.pyi"]
 
 [tool.cibuildwheel]
 # Build all CPython versions (skip PyPy, Python 3.6)
