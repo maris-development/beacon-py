@@ -402,13 +402,28 @@ class Query:
         plt.tight_layout()
         plt.show()
 
-    def to_netcdf(self, filename: str):
-        self.set_output(NetCDF())
-        response = self.run()
+    def to_netcdf(self, filename: str, build_nc_local: bool = True):
+        """Export the query result to a NetCDF file
+        Args:
+            filename (str): The name of the output NetCDF file.
+            build_nc_local (bool): 
+                If True, build the NetCDF file locally using pandas and xarray. (This is likely faster in most cases.)
+                If False, use the server to build the NetCDF file.
+        """
+        # If build_nc_local is True, we will build the NetCDF file locally
+        if build_nc_local:
+            df = self.to_pandas_dataframe()
+            xdf = df.to_xarray()
+            xdf.to_netcdf(filename, mode="w")
+        # If build_nc_local is False, we will use the server to build the NetCDF
+        else:
+            self.set_output(NetCDF())
+            response = self.run()
+            with open(filename, "wb") as f:
+                # Write the content of the response to a file
+                f.write(response.content)  # type: ignore
 
-        with open(filename, "w") as f:
-            # Write the content of the response to a file
-            f.write(response.content)  # type: ignore
+
 
     def to_arrow(self, filename: str):
         self.set_output(Arrow())
