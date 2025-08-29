@@ -7,7 +7,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "beacon-api"
+name = "beacon-py"
 version = "1.0.1"  # CI will replace this during nightly build
 description = "Python interface wrapper for interacting with Beacon Nodes."
 readme = "README.md"
@@ -44,7 +44,7 @@ dependencies = [
 # packages = ["beacon_api"]  # OR use find if you prefer
 
 [tool.setuptools.packages.find]
-include = ["beacon_api*"]
+include = ["beacon_py*"]
 
 [tool.setuptools.package-data]
 "beacon_api" = ["py.typed", "*.pyi"]
