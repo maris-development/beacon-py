@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "beacon-api"
-version = "1.0.0"  # CI will replace this during nightly build
+version = "1.0.1"  # CI will replace this during nightly build
 description = "Python interface wrapper for interacting with Beacon Nodes."
 readme = "README.md"
 requires-python = ">=3.7"

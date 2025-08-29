@@ -231,6 +231,14 @@ class Query:
         for column, alias in columns:
             self.selects.append(SelectColumn(column=column, alias=alias))
         return self
+    
+    def add_select_coalesced(self, mergeable_columns: list[str], alias: str) -> Self:
+        if not hasattr(self, "selects"):
+            self.selects = []
+        
+        function_call = SelectFunction("coalesce", args=[SelectColumn(column=col) for col in mergeable_columns], alias=alias)
+        self.selects.append(function_call)
+        return self
 
     def filter(self, filters: list[Filter]) -> Self:
         self.filters = filters
