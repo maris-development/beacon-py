@@ -82,6 +82,15 @@ class Client:
         return datasets
 
     def query(self) -> Query:
+        """Create a new query object. 
+        This is the starting point for building a query.
+        The query can then be built using the methods on the Query object.
+        You can also create a query from a specific table from the list_tables() method.
+        
+        To materialize and run the query, use the .to_dataframe() or .to_csv() methods on the Query object.
+        Returns:
+            Query: A new query object.
+        """
         return Query(http_session=self.session)
     
     def subset(self, longitude_column: str, latitude_column: str, time_column: str, depth_column: str, columns: list[str],

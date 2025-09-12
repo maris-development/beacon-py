@@ -50,6 +50,23 @@ class SelectFunction(Select):
 ### PREDEFINED FUNCTIONS ###
 class Functions:
     @staticmethod
+    def concat(args: list[str | Select], alias: str) -> SelectFunction:
+        """
+        Constructs a CONCAT function, concatenating the selected columns or arguments.
+        Args:
+            args (list[str  |  Select]): List of column names (str) or Select objects to concatenate.
+            alias (str): Alias name for the resulting select expression.
+        """
+        
+        select_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                select_args.append(SelectColumn(column=arg))
+            elif isinstance(arg, Select):
+                select_args.append(arg)
+        return SelectFunction("concat", args=select_args, alias=alias)
+    
+    @staticmethod
     def coalesce(args: list[str | Select], alias: str) -> SelectFunction:
         """
         Constructs a COALESCE function, returning the first non-null value from the selected columns or arguments.
@@ -308,6 +325,9 @@ class Odv(Output):
 
 class Query:
     def __init__(self, http_session: BaseBeaconSession, from_table: str | None = None):
+        """
+        A class to build and run Beacon JSON Queries. Best to construct this object using the Client object or Table object.
+        """
         self.http_session = http_session
         self.from_table = from_table
 
@@ -322,18 +342,43 @@ class Query:
         return self
 
     def add_selects(self, selects: list[Select]) -> Self:
+        """Adds multiple select statements to the query.
+
+        Args:
+            selects (list[Select]): The select statements to add.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "selects"):
             self.selects = []
         self.selects.extend(selects)
         return self
 
     def add_select_column(self, column: str, alias: str | None = None) -> Self:
+        """Adds a select column to the query.
+
+        Args:
+            column (str): The name of the column to select.
+            alias (str | None, optional): An optional alias for the column. Defaults to None.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "selects"):
             self.selects = []
         self.selects.append(SelectColumn(column=column, alias=alias))
         return self
 
     def add_select_columns(self, columns: list[tuple[str, str | None]]) -> Self:
+        """Adds multiple select columns to the query.
+
+        Args:
+            columns (list[tuple[str, str  |  None]]): A list of tuples containing column names and their aliases.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "selects"):
             self.selects = []
         for column, alias in columns:
@@ -341,18 +386,43 @@ class Query:
         return self
     
     def add_select_coalesced(self, mergeable_columns: list[str], alias: str) -> Self:
+        """Adds a coalesced select to the query.
+
+        Args:
+            mergeable_columns (list[str]): The columns to merge.
+            alias (str): The alias for the merged column.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "selects"):
             self.selects = []
-        
+
         function_call = SelectFunction("coalesce", args=[SelectColumn(column=col) for col in mergeable_columns], alias=alias)
         self.selects.append(function_call)
         return self
 
     def filter(self, filters: list[Filter]) -> Self:
+        """Adds filters to the query.
+
+        Args:
+            filters (list[Filter]): The filters to add.
+
+        Returns:
+            Self: The query builder instance.
+        """
         self.filters = filters
         return self
 
     def add_filter(self, filter: Filter) -> Self:
+        """Adds a filter to the query.
+
+        Args:
+            filter (Filter): The filter to add.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(filter)
@@ -364,6 +434,16 @@ class Query:
         latitude_column: str,
         bbox: tuple[float, float, float, float],
     ) -> Self:
+        """Adds a bounding box filter to the query.
+
+        Args:
+            longitude_column (str): The name of the column for longitude.
+            latitude_column (str): The name of the column for latitude.
+            bbox (tuple[float, float, float, float]): The bounding box coordinates (min_lon, max_lon, min_lat, max_lat).
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(
@@ -379,6 +459,16 @@ class Query:
         return self
     
     def add_polygon_filter(self, longitude_column: str, latitude_column: str, polygon: list[tuple[float, float]]) -> Self:
+        """Adds a POLYGON filter to the query.
+
+        Args:
+            longitude_column (str): The name of the column for longitude.
+            latitude_column (str): The name of the column for latitude.
+            polygon (list[tuple[float, float]]): A list of (longitude, latitude) tuples defining the polygon.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(PolygonFilter(longitude_column=longitude_column, latitude_column=latitude_column, polygon=polygon))
@@ -390,6 +480,16 @@ class Query:
         gt_eq: str | int | float | datetime | None = None,
         lt_eq: str | int | float | datetime | None = None,
     ) -> Self:
+        """Adds a RANGE filter to the query.
+
+        Args:
+            column (str): The name of the column to filter.
+            gt_eq (str | int | float | datetime | None, optional): The lower bound for the range filter. Defaults to None.
+            lt_eq (str | int | float | datetime | None, optional): The upper bound for the range filter. Defaults to None.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(RangeFilter(column=column, gt_eq=gt_eq, lt_eq=lt_eq))
@@ -398,6 +498,15 @@ class Query:
     def add_equals_filter(
         self, column: str, eq: str | int | float | bool | datetime
     ) -> Self:
+        """Adds an EQUALS filter to the query.
+
+        Args:
+            column (str): The name of the column to filter.
+            eq (str | int | float | bool | datetime): The value to compare against.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(EqualsFilter(column=column, eq=eq))
@@ -406,28 +515,72 @@ class Query:
     def add_not_equals_filter(
         self, column: str, neq: str | int | float | bool | datetime
     ) -> Self:
+        """Adds a NOT EQUALS filter to the query.
+
+        Args:
+            column (str): The name of the column to filter.
+            neq (str | int | float | bool | datetime): The value to compare against.
+
+        Returns:
+            Self: The query builder instance.
+        """
+
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(NotEqualsFilter(column=column, neq=neq))
         return self
 
     def add_is_null_filter(self, column: str) -> Self:
+        """Adds an IS NULL filter to the query.
+
+        Args:
+            column (str): The name of the column to filter.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(FilerIsNull(column=column))
         return self
 
     def add_is_not_null_filter(self, column: str) -> Self:
+        """Adds an IS NOT NULL filter to the query.
+
+        Args:
+            column (str): The name of the column to filter.
+
+        Returns:
+            Self: The query builder instance.
+        """
         if not hasattr(self, "filters"):
             self.filters = []
         self.filters.append(IsNotNullFilter(column=column))
         return self
 
     def set_output(self, output: Output) -> Self:
+        """Sets the output format for the query.
+
+        Args:
+            output (Output): The output format to use.
+
+        Returns:
+            Self: The query builder instance.
+        """
         self.output = output
         return self
 
     def compile_query(self) -> str:
+        """Compiles the query into a Beacon JSON Query.
+
+        Raises:
+            ValueError: If the query is invalid.
+            ValueError: If the query is invalid.
+            TypeError: If the query is invalid.
+            
+        Returns:
+            str: The compiled query as a JSON string.
+        """
         # Check if from_table is set
         if not self.from_table:
             self.from_table = "default"
@@ -461,6 +614,7 @@ class Query:
         return json.dumps(query, default=datetime_converter)
 
     def run(self) -> Response:
+        """Run the query and return the response"""
         query = self.compile_query()
         print(f"Running query: {query}")
         response = self.http_session.post("/api/query", data=query)
@@ -479,6 +633,7 @@ class Query:
         return response.json()
 
     def explain_visualize(self):
+        """Visualize the query plan using networkx and matplotlib"""
         plan_json = self.explain()
         # Extract the root plan node
         root_plan = plan_json[0]["Plan"]
@@ -587,6 +742,14 @@ class Query:
             f.write(response.content)
 
     def to_geoparquet(self, filename: str, longitude_column: str, latitude_column: str):
+        """
+        Exports the query results to a GeoParquet file.
+        
+        Args:
+            filename (str): The path to the file where the GeoParquet data will be saved.
+            longitude_column (str): The name of the column representing longitude.
+            latitude_column (str): The name of the column representing latitude.
+        """
         self.set_output(GeoParquet(longitude_column=longitude_column, latitude_column=latitude_column))
         response = self.run()
 
@@ -595,6 +758,11 @@ class Query:
             f.write(response.content)
 
     def to_csv(self, filename: str):
+        """Exports the query results to a CSV file.
+
+        Args:
+            filename (str): The path to the file where the CSV data will be saved.
+        """
         self.set_output(CSV())
         response = self.run()
 
@@ -603,6 +771,11 @@ class Query:
             f.write(response.content)
 
     def to_zarr(self, filename: str):
+        """Exports the query results to a Zarr file.
+
+        Args:
+            filename (str): The path to the file where the Zarr data will be saved.
+        """
         # Read to pandas dataframe first
         df = self.to_pandas_dataframe()
         # Convert to Zarr format
@@ -610,6 +783,11 @@ class Query:
         xdf.to_zarr(filename, mode="w")
 
     def to_pandas_dataframe(self) -> pd.DataFrame:
+        """Converts the query results to a pandas DataFrame.
+
+        Returns:
+            pd.DataFrame: The query results as a pandas DataFrame.
+        """
         self.set_output(Parquet())
         response = self.run()
         bytes_io = BytesIO(response.content)
@@ -618,6 +796,16 @@ class Query:
         return df
 
     def to_geo_pandas_dataframe(self, longitude_column: str, latitude_column: str, crs: str = "EPSG:4326") -> gpd.GeoDataFrame:
+        """Converts the query results to a GeoPandas GeoDataFrame.
+
+        Args:
+            longitude_column (str): The name of the column representing longitude.
+            latitude_column (str): The name of the column representing latitude.
+            crs (str, optional): The coordinate reference system to use. Defaults to "EPSG:4326".
+
+        Returns:
+            gpd.GeoDataFrame: The query results as a GeoPandas GeoDataFrame.
+        """
         self.set_output(GeoParquet(longitude_column=longitude_column, latitude_column=latitude_column))
         response = self.run()
         bytes_io = BytesIO(response.content)
@@ -629,6 +817,12 @@ class Query:
         return gdf
 
     def to_odv(self, odv_output: Odv, filename: str):
+        """Exports the query results to an ODV file.
+
+        Args:
+            odv_output (Odv): The ODV output format to use.
+            filename (str): The path to the file where the ODV data will be saved.
+        """
         self.set_output(odv_output)
         response = self.run()
         with open(filename, "wb") as f:
