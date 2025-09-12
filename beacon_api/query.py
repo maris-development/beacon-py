@@ -8,22 +8,17 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from pyarrow import parquet as pq
 from requests import Response
-from lonboard import Map
-from lonboard import viz
-from lonboard.basemap import CartoBasemap
-from lonboard.colormap import apply_continuous_cmap
-from palettable.palette import Palette
-from palettable.matplotlib import Viridis_10
-
+import numpy as np
+from numpy.typing import DTypeLike
 
 from .session import BaseBeaconSession
 
 # Ensure compatibility with Python 3.11+ for Self type
 try:
-    from typing import Self
+    from typing import Self, cast
     from typing import Literal
 except ImportError:
-    from typing_extensions import Self
+    from typing_extensions import Self, cast
     from typing_extensions import Literal
 
 
@@ -48,9 +43,111 @@ class SelectColumn(Select):
 @dataclass
 class SelectFunction(Select):
     function: str
-    args: list[QueryNode] | None = None
+    args: list[Select] | None = None
     alias: str | None = None
 
+
+### PREDEFINED FUNCTIONS ###
+class Functions:
+    @staticmethod
+    def coalesce(args: list[str | Select], alias: str) -> SelectFunction:
+        """
+        Constructs a COALESCE function, returning the first non-null value from the selected columns or arguments.
+        Args:
+            args (list[str  |  Select]): List of column names (str) or Select objects to coalesce.
+            alias (str): Alias name for the resulting select expression.
+
+        Returns:
+            SelectFunction: SelectFunction representing the COALESCE operation.
+        """
+        select_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                select_args.append(SelectColumn(column=arg))
+            elif isinstance(arg, Select):
+                select_args.append(arg)
+        return SelectFunction("coalesce", args=select_args, alias=alias)
+    
+    @staticmethod
+    def try_cast_to_type(arg: str | Select, to_type: DTypeLike, alias: str) -> SelectFunction:
+            """
+            Attempts to cast the input column or argument to the specified data type.
+            Args:
+                arg: Column name (str) or Select object to cast.
+                to_type: Target data type (compatible with numpy dtype). Eg. np.int64, np.float64, np.datetime64, np.str_
+                alias: Alias name for the resulting select expression.
+            Returns:
+                SelectFunction representing the cast operation.
+            """
+            dtype = np.dtype(to_type)  # normalize everything into a np.dtype
+            arrow_type = None
+            if np.issubdtype(dtype, np.integer):
+                print("This is an integer dtype:", dtype)
+                arrow_type = "Int64"
+            elif np.issubdtype(dtype, np.floating):
+                arrow_type = "Float64"
+            elif np.issubdtype(dtype, np.datetime64):
+                arrow_type = 'Timestamp(Nanosecond, None)'
+            elif np.issubdtype(dtype, np.str_):
+                arrow_type = 'Utf8'
+            else:
+                raise ValueError(f"Unsupported type for cast_to_type: {to_type}")
+            
+            if isinstance(arg, str):
+                arg = SelectColumn(column=arg)
+                return SelectFunction("try_arrow_cast", args=[arg, SelectLiteral(value=arrow_type)], alias=alias)
+            elif isinstance(arg, Select):
+                return SelectFunction("try_arrow_cast", args=[arg, SelectLiteral(value=arrow_type)], alias=alias)
+        
+    @staticmethod
+    def cast_byte_to_char(arg: str | Select, alias: str) -> SelectFunction:
+        """Maps byte values to char.
+
+        Args:
+            arg (str | Select): column name (str) or Select object containing the byte value.
+            alias (str): Alias name for the resulting select expression/column.
+
+        Returns:
+            SelectFunction: SelectFunction representing the cast operation.
+        """
+        if isinstance(arg, str):
+            arg = SelectColumn(column=arg)
+        return SelectFunction("cast_int8_as_char", args=[arg], alias=alias)
+
+    @staticmethod
+    def map_wod_quality_flag_to_sdn_scheme(arg: str | Select, alias: str) -> SelectFunction:
+        """Maps WOD quality flags to the SDN scheme.
+
+        Args:
+            arg (str | Select): column name (str) or Select object containing the WOD quality flag.
+            alias (str): Alias name for the resulting select expression/column.
+
+        Returns:
+            SelectFunction: SelectFunction representing the mapping operation.
+        """
+        if isinstance(arg, str):
+            arg = SelectColumn(column=arg)
+        return SelectFunction("map_wod_quality_flag", args=[arg], alias=alias)
+
+    @staticmethod
+    def map_pressure_to_depth(arg: str | Select, latitude_column: str | Select, alias: str) -> SelectFunction:
+        """Maps pressure values to depth based on latitude using teos-10.
+
+        Args:
+            arg (str | Select): column name (str) or Select object containing the pressure value.
+            latitude_column (str | Select): column name (str) or Select object containing the latitude value.
+            alias (str): Alias name for the resulting select expression/column.
+
+        Returns:
+            SelectFunction: SelectFunction representing the pressure-to-depth mapping operation.
+        """
+        if isinstance(arg, str):
+            arg = SelectColumn(column=arg)
+        if isinstance(latitude_column, str):
+            latitude_column = SelectColumn(column=latitude_column)
+        return SelectFunction("map_pressure_to_depth", args=[arg, latitude_column], alias=alias)
+
+### END PREDEFINED FUNCTIONS ###
 
 @dataclass
 class SelectLiteral(Select):
@@ -68,7 +165,6 @@ class RangeFilter(Filter):
     column: str
     gt_eq: str | int | float | datetime | None = None
     lt_eq: str | int | float | datetime | None = None
-
 
 @dataclass
 class EqualsFilter(Filter):
@@ -113,6 +209,18 @@ class OrFilter(Filter):
     def to_dict(self) -> dict:
         return {"or": [f.to_dict() for f in self.filters]}
 
+@dataclass
+class PolygonFilter(Filter):
+    longitude_column: str
+    latitude_column: str
+    polygon: list[tuple[float, float]]
+
+    def to_dict(self) -> dict:
+        return {
+            "longitude_query_parameter": self.longitude_column,
+            "latitude_query_parameter": self.latitude_column,
+            "geometry": { "coordinates": self.polygon, "type": "Polygon" }
+        }
 
 @dataclass
 class Output(QueryNode):
@@ -268,6 +376,12 @@ class Query:
                 ]
             )
         )
+        return self
+    
+    def add_polygon_filter(self, longitude_column: str, latitude_column: str, polygon: list[tuple[float, float]]) -> Self:
+        if not hasattr(self, "filters"):
+            self.filters = []
+        self.filters.append(PolygonFilter(longitude_column=longitude_column, latitude_column=latitude_column, polygon=polygon))
         return self
 
     def add_range_filter(
@@ -434,6 +548,18 @@ class Query:
 
 
     def to_arrow(self, filename: str):
+        """
+        Converts the query result to Apache Arrow format and writes it to a file.
+
+        Args:
+            filename (str): The path to the file where the Arrow-formatted data will be saved.
+
+        Returns:
+            None
+
+        Side Effects:
+            Writes the Arrow-formatted response content to the specified file.
+        """
         self.set_output(Arrow())
         response = self.run()
 
@@ -442,6 +568,17 @@ class Query:
             f.write(response.content)
 
     def to_parquet(self, filename: str):
+        """
+        Exports the query results to a Parquet file.
+
+        This method sets the output format to Parquet, executes the query, and writes the resulting data to the specified file.
+
+        Args:
+            filename (str): The path to the file where the Parquet data will be saved.
+
+        Returns:
+            None
+        """
         self.set_output(Parquet())
         response = self.run()
 
@@ -497,63 +634,3 @@ class Query:
         with open(filename, "wb") as f:
             # Write the content of the response to a file
             f.write(response.content)
-            
-    def to_lonboard_map(
-        self,
-        longitude: str,
-        latitude: str,
-        value_column: str,
-        crs: str = "EPSG:4326",
-        zoom: int = 2,
-        color_palette : Palette = Viridis_10,
-        radius_units: Literal['meters', 'pixels', 'common'] = 'common',
-        radius_scale: float = 10.0,
-        radius_min_pixels: int = 5,
-        radius_max_pixels: int = 20,
-        basemap_style: CartoBasemap = CartoBasemap.Positron,
-        show_tooltip: bool = True,
-        show_side_panel: bool = True,
-    ) -> Map:
-        """Visualize the data on a map using lonboard"""
-        # Get the data as a GeoDataFrame
-        df = self.to_geo_pandas_dataframe(longitude, latitude, crs)
-        if df.empty:
-            raise ValueError("DataFrame is empty. Cannot visualize on map.")
-        
-        if crs != "EPSG:4326":
-            print(f"Converting GeoDataFrame from {crs} to EPSG:4326")
-            df = df.to_crs(epsg=4326)
-            
-        # Create a lonboard map
-        center_lon = df.geometry.x.mean()
-        center_lat = df.geometry.y.mean()
-
-        min_value = df[value_column].min()
-        max_value = df[value_column].max()
-        values = df[value_column].to_numpy()
-        normalized_values = (values - min_value) / (max_value - min_value)
-        fill_color = apply_continuous_cmap(normalized_values, Viridis_10, alpha=0.8)
-
-        m = viz(
-            df,
-            scatterplot_kwargs={
-                "get_fill_color": fill_color,
-                "radius_units": radius_units,
-                "radius_scale": radius_scale,
-                "radius_min_pixels": radius_min_pixels,
-                "radius_max_pixels": radius_max_pixels,
-            },
-            # choose a nice basemap and initial view
-            map_kwargs={
-                "show_tooltip": show_tooltip,
-                "show_side_panel": show_side_panel,
-                "basemap_style": basemap_style,
-                "view_state": {
-                    "longitude": center_lon,
-                    "latitude": center_lat,
-                    "zoom": zoom
-                },
-            },
-        )
-
-        return m
