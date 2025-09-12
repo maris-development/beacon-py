@@ -1,0 +1,1 @@
+stubgen -p beacon_api -o ./
