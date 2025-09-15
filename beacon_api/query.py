@@ -236,7 +236,7 @@ class PolygonFilter(Filter):
         return {
             "longitude_query_parameter": self.longitude_column,
             "latitude_query_parameter": self.latitude_column,
-            "geometry": { "coordinates": self.polygon, "type": "Polygon" }
+            "geometry": { "coordinates": [self.polygon], "type": "Polygon" }
         }
 
 @dataclass
@@ -301,7 +301,7 @@ class Odv(Output):
     metadata_columns: list[OdvDataColumn]
     qf_schema: str
     key_column: str
-    archiving: str = "zip_deflate"
+    feature_type_column: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -317,19 +317,20 @@ class Odv(Output):
                     ],
                     "qf_schema": self.qf_schema,
                     "key_column": self.key_column,
-                    "archiving": self.archiving,
+                    "feature_type_column": self.feature_type_column,
                 }
             }
         }
 
 
 class Query:
-    def __init__(self, http_session: BaseBeaconSession, from_table: str | None = None):
+    def __init__(self, http_session: BaseBeaconSession, from_table: str | None = None, from_file_path: str | None = None):
         """
         A class to build and run Beacon JSON Queries. Best to construct this object using the Client object or Table object.
         """
         self.http_session = http_session
         self.from_table = from_table
+        self.from_file_path = from_file_path
 
     def select(self, selects: list[Select]) -> Self:
         self.selects = selects
@@ -582,8 +583,15 @@ class Query:
             str: The compiled query as a JSON string.
         """
         # Check if from_table is set
-        if not self.from_table:
-            self.from_table = "default"
+        from_ = None
+        if not self.from_table and not self.from_file_path:
+            from_ = "default"
+        elif self.from_table and self.from_file_path:
+            raise ValueError("Cannot set both from_table and from_file_path")
+        elif self.from_file_path:
+            from_ = self.from_file_path
+        else:
+            from_ = self.from_table
 
         # Check if output is set
         if not hasattr(self, "output"):
@@ -594,7 +602,7 @@ class Query:
             raise ValueError("Selects must be set before compiling the query")
 
         query = {
-            "from": self.from_table,
+            "from": from_,
             "select": (
                 [s.to_dict() for s in self.selects] if hasattr(self, "selects") else []
             ),

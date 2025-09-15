@@ -9,6 +9,8 @@ from io import BytesIO
 from .query import Query
 from .session import BaseBeaconSession
 from .table import DataTable
+from .dataset import Dataset
+
 class Client:
     def __init__(self, url: str, proxy_headers: dict[str,str] | None = None, jwt_token: str | None = None, basic_auth: tuple[str, str] | None = None):
         if proxy_headers is None:
@@ -69,7 +71,7 @@ class Client:
         
         return data_tables
     
-    def list_datasets(self, pattern: str | None = None, limit : int | None = None, offset: int | None = None) -> list[str]:
+    def list_datasets(self, pattern: str | None = None, limit : int | None = None, offset: int | None = None) -> dict[str, Dataset]:
         """Get all the datasets"""
         response = self.session.get("/api/datasets", params={
             "pattern": pattern,
@@ -79,7 +81,13 @@ class Client:
         if response.status_code != 200:
             raise Exception(f"Failed to get datasets: {response.text}")
         datasets = response.json()
-        return datasets
+        dataset_objects = {}
+        for dataset in datasets:
+            dataset_objects[dataset] = Dataset(
+                http_session=self.session,
+                file_path=dataset
+            )
+        return dataset_objects
 
     def query(self) -> Query:
         """Create a new query object. 
@@ -91,7 +99,7 @@ class Client:
         Returns:
             Query: A new query object.
         """
-        return Query(http_session=self.session)
+        return Query(http_session=self.session, from_table="default")
     
     def subset(self, longitude_column: str, latitude_column: str, time_column: str, depth_column: str, columns: list[str],
                          bbox: Optional[tuple[float, float, float, float]] = None,
