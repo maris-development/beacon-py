@@ -162,7 +162,7 @@ class Functions:
             arg = SelectColumn(column=arg)
         if isinstance(latitude_column, str):
             latitude_column = SelectColumn(column=latitude_column)
-        return SelectFunction("map_pressure_to_depth", args=[arg, latitude_column], alias=alias)
+        return SelectFunction("pressure_to_depth_teos_10", args=[arg, latitude_column], alias=alias)
 
 ### END PREDEFINED FUNCTIONS ###
 
