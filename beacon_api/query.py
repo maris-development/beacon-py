@@ -784,6 +784,14 @@ class Query:
         Args:
             filename (str): The path to the file where the Zarr data will be saved.
         """
+        
+        try:
+            import zarr # just to check if zarr is installed
+        except ImportError as e:
+            raise ImportError(
+                "This function requires `zarr`. Install with `pip install beacon-api[zarr]`."
+            ) from e
+    
         # Read to pandas dataframe first
         df = self.to_pandas_dataframe()
         # Convert to Zarr format

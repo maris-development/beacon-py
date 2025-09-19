@@ -35,10 +35,10 @@ dependencies = [
   "netCDF4 >= 1.5.0",
   "geopandas >= 1.1.0",
   "typing_extensions >= 4.10.0",
-  "lonboard >= 0.10.4",
-  "palettable >= 3.3.0",
-  "zarr >= 2.18"
 ]
+
+[project.optional-dependencies]
+zarr = ["zarr>=2.18"]
 
 # [tool.setuptools]
 # packages = ["beacon_api"]  # OR use find if you prefer
