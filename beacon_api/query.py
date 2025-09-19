@@ -642,6 +642,15 @@ class Query:
 
     def explain_visualize(self):
         """Visualize the query plan using networkx and matplotlib"""
+        
+        try: 
+            import networkx as nx
+            import matplotlib.pyplot as plt
+        except ImportError as e:
+            raise ImportError(
+                "This function requires `networkx` and `matplotlib`. Install with `pip install beacon-api[profiling]`."
+            ) from e
+        
         plan_json = self.explain()
         # Extract the root plan node
         root_plan = plan_json[0]["Plan"]
@@ -822,6 +831,14 @@ class Query:
         Returns:
             gpd.GeoDataFrame: The query results as a GeoPandas GeoDataFrame.
         """
+        
+        try:
+            import geopandas as gpd
+        except ImportError as e:
+            raise ImportError(
+                "This function requires `geopandas`. Install with `pip install beacon-api[geopandas]`."
+            ) from e
+        
         self.set_output(GeoParquet(longitude_column=longitude_column, latitude_column=latitude_column))
         response = self.run()
         bytes_io = BytesIO(response.content)
