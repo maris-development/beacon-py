@@ -17,9 +17,17 @@ from .session import BaseBeaconSession
 try:
     from typing import Self, cast
     from typing import Literal
+    from typing import Optional
+    from typing import List
+    from typing import Union
+    from typing import Tuple
 except ImportError:
     from typing_extensions import Self, cast
     from typing_extensions import Literal
+    from typing_extensions import Optional
+    from typing_extensions import List
+    from typing_extensions import Union
+    from typing_extensions import Tuple
 
 
 @dataclass
@@ -37,20 +45,20 @@ class Select(QueryNode):
 @dataclass
 class SelectColumn(Select):
     column: str
-    alias: str | None = None
+    alias: Optional[str] = None
 
 
 @dataclass
 class SelectFunction(Select):
     function: str
-    args: list[Select] | None = None
-    alias: str | None = None
+    args: Optional[List[Select]] = None
+    alias: Optional[str] = None
 
 
 ### PREDEFINED FUNCTIONS ###
 class Functions:
     @staticmethod
-    def concat(args: list[str | Select], alias: str) -> SelectFunction:
+    def concat(args: List[Union[str, Select]], alias: str) -> SelectFunction:
         """
         Constructs a CONCAT function, concatenating the selected columns or arguments.
         Args:
@@ -67,7 +75,7 @@ class Functions:
         return SelectFunction("concat", args=select_args, alias=alias)
     
     @staticmethod
-    def coalesce(args: list[str | Select], alias: str) -> SelectFunction:
+    def coalesce(args: List[Union[str, Select]], alias: str) -> SelectFunction:
         """
         Constructs a COALESCE function, returning the first non-null value from the selected columns or arguments.
         Args:
@@ -86,7 +94,7 @@ class Functions:
         return SelectFunction("coalesce", args=select_args, alias=alias)
     
     @staticmethod
-    def try_cast_to_type(arg: str | Select, to_type: DTypeLike, alias: str) -> SelectFunction:
+    def try_cast_to_type(arg: Union[str, Select], to_type: DTypeLike, alias: str) -> SelectFunction:
             """
             Attempts to cast the input column or argument to the specified data type.
             Args:
@@ -117,7 +125,7 @@ class Functions:
                 return SelectFunction("try_arrow_cast", args=[arg, SelectLiteral(value=arrow_type)], alias=alias)
         
     @staticmethod
-    def cast_byte_to_char(arg: str | Select, alias: str) -> SelectFunction:
+    def cast_byte_to_char(arg: Union[str, Select], alias: str) -> SelectFunction:
         """Maps byte values to char.
 
         Args:
@@ -132,7 +140,7 @@ class Functions:
         return SelectFunction("cast_int8_as_char", args=[arg], alias=alias)
 
     @staticmethod
-    def map_wod_quality_flag_to_sdn_scheme(arg: str | Select, alias: str) -> SelectFunction:
+    def map_wod_quality_flag_to_sdn_scheme(arg: Union[str, Select], alias: str) -> SelectFunction:
         """Maps WOD quality flags to the SDN scheme.
 
         Args:
@@ -147,7 +155,7 @@ class Functions:
         return SelectFunction("map_wod_quality_flag", args=[arg], alias=alias)
 
     @staticmethod
-    def map_pressure_to_depth(arg: str | Select, latitude_column: str | Select, alias: str) -> SelectFunction:
+    def map_pressure_to_depth(arg: Union[str, Select], latitude_column: Union[str, Select], alias: str) -> SelectFunction:
         """Maps pressure values to depth based on latitude using teos-10.
 
         Args:
@@ -168,8 +176,8 @@ class Functions:
 
 @dataclass
 class SelectLiteral(Select):
-    value: str | int | float | bool
-    alias: str | None = None
+    value: Union[str, int, float, bool]
+    alias: Optional[str] = None
 
 
 @dataclass
@@ -180,23 +188,23 @@ class Filter(QueryNode):
 @dataclass
 class RangeFilter(Filter):
     column: str
-    gt_eq: str | int | float | datetime | None = None
-    lt_eq: str | int | float | datetime | None = None
+    gt_eq: Union[str, int, float, datetime, None] = None
+    lt_eq: Union[str, int, float, datetime, None] = None
 
 @dataclass
 class EqualsFilter(Filter):
     column: str
-    eq: str | int | float | bool | datetime
+    eq: Union[str, int, float, bool, datetime]
 
 
 @dataclass
 class NotEqualsFilter(Filter):
     column: str
-    neq: str | int | float | bool | datetime
+    neq: Union[str, int, float, bool, datetime]
 
 
 @dataclass
-class FilerIsNull(Filter):
+class FilterIsNull(Filter):
     column: str
 
     def to_dict(self) -> dict:
@@ -213,7 +221,7 @@ class IsNotNullFilter(Filter):
 
 @dataclass
 class AndFilter(Filter):
-    filters: list[Filter]
+    filters: List[Filter]
 
     def to_dict(self) -> dict:
         return {"and": [f.to_dict() for f in self.filters]}
@@ -221,7 +229,7 @@ class AndFilter(Filter):
 
 @dataclass
 class OrFilter(Filter):
-    filters: list[Filter]
+    filters: List[Filter]
 
     def to_dict(self) -> dict:
         return {"or": [f.to_dict() for f in self.filters]}
@@ -230,7 +238,7 @@ class OrFilter(Filter):
 class PolygonFilter(Filter):
     longitude_column: str
     latitude_column: str
-    polygon: list[tuple[float, float]]
+    polygon: List[Tuple[float, float]]
 
     def to_dict(self) -> dict:
         return {
@@ -284,9 +292,9 @@ class CSV(Output):
 @dataclass
 class OdvDataColumn(QueryNode):
     column_name: str
-    qf_column: str | None = None
-    comment: str | None = None
-    unit: str | None = None
+    qf_column: Optional[str] = None
+    comment: Optional[str] = None
+    unit: Optional[str] = None
 
 
 @dataclass
@@ -297,11 +305,11 @@ class Odv(Output):
     latitude_column: OdvDataColumn
     time_column: OdvDataColumn
     depth_column: OdvDataColumn
-    data_columns: list[OdvDataColumn]
-    metadata_columns: list[OdvDataColumn]
+    data_columns: List[OdvDataColumn]
+    metadata_columns: List[OdvDataColumn]
     qf_schema: str
     key_column: str
-    feature_type_column: str | None = None
+    feature_type_column: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -324,7 +332,7 @@ class Odv(Output):
 
 
 class Query:
-    def __init__(self, http_session: BaseBeaconSession, from_table: str | None = None, from_file_path: str | None = None):
+    def __init__(self, http_session: BaseBeaconSession, from_table: Optional[str] = None, from_file_path: Optional[str] = None):
         """
         A class to build and run Beacon JSON Queries. Best to construct this object using the Client object or Table object.
         """
@@ -332,7 +340,7 @@ class Query:
         self.from_table = from_table
         self.from_file_path = from_file_path
 
-    def select(self, selects: list[Select]) -> Self:
+    def select(self, selects: List[Select]) -> Self:
         self.selects = selects
         return self
 
@@ -342,7 +350,7 @@ class Query:
         self.selects.append(select)
         return self
 
-    def add_selects(self, selects: list[Select]) -> Self:
+    def add_selects(self, selects: List[Select]) -> Self:
         """Adds multiple select statements to the query.
 
         Args:
@@ -356,7 +364,7 @@ class Query:
         self.selects.extend(selects)
         return self
 
-    def add_select_column(self, column: str, alias: str | None = None) -> Self:
+    def add_select_column(self, column: str, alias: Optional[str] = None) -> Self:
         """Adds a select column to the query.
 
         Args:
@@ -371,11 +379,11 @@ class Query:
         self.selects.append(SelectColumn(column=column, alias=alias))
         return self
 
-    def add_select_columns(self, columns: list[tuple[str, str | None]]) -> Self:
+    def add_select_columns(self, columns: List[Tuple[str, Optional[str]]]) -> Self:
         """Adds multiple select columns to the query.
 
         Args:
-            columns (list[tuple[str, str  |  None]]): A list of tuples containing column names and their aliases.
+            columns (List[Tuple[str, Optional[str]]]): A list of tuples containing column names and their aliases.
 
         Returns:
             Self: The query builder instance.
@@ -385,8 +393,8 @@ class Query:
         for column, alias in columns:
             self.selects.append(SelectColumn(column=column, alias=alias))
         return self
-    
-    def add_select_coalesced(self, mergeable_columns: list[str], alias: str) -> Self:
+
+    def add_select_coalesced(self, mergeable_columns: List[str], alias: str) -> Self:
         """Adds a coalesced select to the query.
 
         Args:
@@ -403,7 +411,7 @@ class Query:
         self.selects.append(function_call)
         return self
 
-    def filter(self, filters: list[Filter]) -> Self:
+    def filter(self, filters: List[Filter]) -> Self:
         """Adds filters to the query.
 
         Args:
@@ -433,7 +441,7 @@ class Query:
         self,
         longitude_column: str,
         latitude_column: str,
-        bbox: tuple[float, float, float, float],
+        bbox: Tuple[float, float, float, float],
     ) -> Self:
         """Adds a bounding box filter to the query.
 
@@ -458,8 +466,8 @@ class Query:
             )
         )
         return self
-    
-    def add_polygon_filter(self, longitude_column: str, latitude_column: str, polygon: list[tuple[float, float]]) -> Self:
+
+    def add_polygon_filter(self, longitude_column: str, latitude_column: str, polygon: List[Tuple[float, float]]) -> Self:
         """Adds a POLYGON filter to the query.
 
         Args:
@@ -478,8 +486,8 @@ class Query:
     def add_range_filter(
         self,
         column: str,
-        gt_eq: str | int | float | datetime | None = None,
-        lt_eq: str | int | float | datetime | None = None,
+        gt_eq: Union[str, int, float, datetime, None] = None,
+        lt_eq: Union[str, int, float, datetime, None] = None,
     ) -> Self:
         """Adds a RANGE filter to the query.
 
@@ -497,7 +505,7 @@ class Query:
         return self
 
     def add_equals_filter(
-        self, column: str, eq: str | int | float | bool | datetime
+        self, column: str, eq: Union[str, int, float, bool, datetime]
     ) -> Self:
         """Adds an EQUALS filter to the query.
 
@@ -514,7 +522,7 @@ class Query:
         return self
 
     def add_not_equals_filter(
-        self, column: str, neq: str | int | float | bool | datetime
+        self, column: str, neq: Union[str, int, float, bool, datetime]
     ) -> Self:
         """Adds a NOT EQUALS filter to the query.
 
@@ -542,7 +550,7 @@ class Query:
         """
         if not hasattr(self, "filters"):
             self.filters = []
-        self.filters.append(FilerIsNull(column=column))
+        self.filters.append(FilterIsNull(column=column))
         return self
 
     def add_is_not_null_filter(self, column: str) -> Self:
