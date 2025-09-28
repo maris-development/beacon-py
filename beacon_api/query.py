@@ -2,10 +2,8 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 from io import BytesIO
 import json
-import networkx as nx
 import pandas as pd
 import geopandas as gpd
-import matplotlib.pyplot as plt
 from pyarrow import parquet as pq
 from requests import Response
 import numpy as np
