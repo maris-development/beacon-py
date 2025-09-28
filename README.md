@@ -1,6 +1,22 @@
-# Beacon API Python Wrapper
+# Beacon Data Lake Python API
 
-Python Wrapper for Beacon API Access
+Python Wrapper for interacting with the Beacon Data Lake API.
+
+## Documentation
+
+The full documentation for the Beacon Data Lake API can be found at [https://maris-development.github.io/beacon-py/](https://maris-development.github.io/beacon-py/).
+
+## Installation
+
+To install the package, use pip:
+
+```bash
+pip install beacon-api
+```
+
+## Issues
+
+If you encounter any issues or have feature requests, please report them on the [GitHub Issues page](https://github.com/maris-development/beacon-py/issues).
 
 ## Development
 
