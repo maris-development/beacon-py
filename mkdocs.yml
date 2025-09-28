@@ -1,0 +1,46 @@
+site_name: Beacon-Api Docs
+theme:
+  name: material
+  features:
+      - navigation.expand
+      - content.code.copy
+      - content.code.annotate 
+      - search.share
+
+repo_url: https://github.com/maris-development/beacon-py
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]   # make MkDocs see your local package
+extra:
+  version:
+    provider: mike
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Getting Started: getting_started.md
+  - Using The Data Lake:
+    - Exploring: examples/exploring.md
+    - Querying: examples/querying.md
+    - Tables: examples/table.md
+  - API Reference: 
+      - Client: reference/client.md
+      - Query: reference/query.md
+      - Functions: reference/functions.md
+      - Table: reference/table.md
+  - Changelog: changelog.md
+  - Beacon Data Lake: https://maris-development.github.io/beacon/

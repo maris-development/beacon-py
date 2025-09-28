@@ -134,4 +134,9 @@ class DataTable:
         return query
 
     def query(self) -> Query:
+        """Create a new query for the selected table.
+        The query can then be built using the Query methods.
+        Returns:
+            Query: A new query object.
+        """
         return Query(self.http_session, self.table_name)
