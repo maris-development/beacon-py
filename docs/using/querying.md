@@ -104,8 +104,9 @@ query = (
 query = (
     vessels_table
     .query()
-    .add_select_column("LOCATION")
-    .add_polygon_filter("LOCATION", [(-74.0, 40.7), (-73.9, 40.7), (-73.9, 40.8), (-74.0, 40.8), (-74.0, 40.7)])
+    .add_select_column("lon", alias="longitude")
+    .add_select_column("lat", alias="latitude")
+    .add_polygon_filter("longitude", "latitude", [(-74.0, 40.7), (-73.9, 40.7), (-73.9, 40.8), (-74.0, 40.8), (-74.0, 40.7)])
 )
 ```
 

@@ -6,6 +6,18 @@ theme:
       - content.code.copy
       - content.code.annotate 
       - search.share
+  palette: 
+    # Palette toggle for light mode
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 
 repo_url: https://github.com/maris-development/beacon-py
 plugins:
@@ -14,6 +26,8 @@ plugins:
       handlers:
         python:
           paths: ["."]   # make MkDocs see your local package
+          options:
+            docstring_style: numpy
 extra:
   version:
     provider: mike
@@ -34,9 +48,11 @@ nav:
   - Installation: installation.md
   - Getting Started: getting_started.md
   - Using The Data Lake:
-    - Exploring: examples/exploring.md
-    - Querying: examples/querying.md
-    - Tables: examples/table.md
+    - Exploring: using/exploring.md
+    - Querying: using/querying.md
+    - Tables: using/tables.md
+  - Examples: 
+    - World Ocean Database: examples/wod.md
   - API Reference: 
       - Client: reference/client.md
       - Query: reference/query.md
