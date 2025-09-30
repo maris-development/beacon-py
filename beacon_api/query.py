@@ -721,9 +721,9 @@ class Query:
             response = self.run()
             with open(filename, "wb") as f:
                 # Write the content of the response to a file
-                f.write(response.content)  # type: ignore
-
-
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:  # skip keep-alive chunks
+                        f.write(chunk)
 
     def to_arrow(self, filename: str):
         """
@@ -743,9 +743,11 @@ class Query:
 
         with open(filename, "wb") as f:
             # Write the content of the response to a file
-            f.write(response.content)
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:  # skip keep-alive chunks
+                    f.write(chunk)
 
-    def to_parquet(self, filename: str):
+    def to_parquet(self, filename: str, streaming_chunk_size: int = 1024 * 1024):
         """
         Exports the query results to a Parquet file.
 
@@ -762,9 +764,11 @@ class Query:
 
         with open(filename, "wb") as f:
             # Write the content of the response to a file
-            f.write(response.content)
+            for chunk in response.iter_content(chunk_size=streaming_chunk_size):
+                if chunk:  # skip keep-alive chunks
+                    f.write(chunk)
 
-    def to_geoparquet(self, filename: str, longitude_column: str, latitude_column: str):
+    def to_geoparquet(self, filename: str, longitude_column: str, latitude_column: str, streaming_chunk_size: int = 1024 * 1024):
         """
         Exports the query results to a GeoParquet file.
         
@@ -778,9 +782,11 @@ class Query:
 
         with open(filename, "wb") as f:
             # Write the content of the response to a file
-            f.write(response.content)
+            for chunk in response.iter_content(chunk_size=streaming_chunk_size):
+                if chunk:  # skip keep-alive chunks
+                    f.write(chunk)
 
-    def to_csv(self, filename: str):
+    def to_csv(self, filename: str, streaming_chunk_size: int = 1024 * 1024):
         """Exports the query results to a CSV file.
 
         Args:
@@ -791,7 +797,9 @@ class Query:
 
         with open(filename, "wb") as f:
             # Write the content of the response to a file
-            f.write(response.content)
+            for chunk in response.iter_content(chunk_size=streaming_chunk_size):
+                if chunk:  # skip keep-alive chunks
+                    f.write(chunk)
 
     def to_zarr(self, filename: str):
         """Exports the query results to a Zarr file.
