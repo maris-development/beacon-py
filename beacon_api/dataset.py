@@ -2,13 +2,18 @@ from .session import BaseBeaconSession
 from .query import Query
 
 class Dataset:
-    def __init__(self, http_session: BaseBeaconSession, file_path: str):
+    def __init__(self, http_session: BaseBeaconSession, file_path: str, file_format: str):
         self.session = http_session
         self.file_path = file_path
+        self.file_format = file_format
 
     def get_file_path(self) -> str:
         """Get the file path of the dataset"""
         return self.file_path
+    
+    def get_file_format(self) -> str:
+        """Get the file format of the dataset"""
+        return self.file_format
     
     def get_file_name(self) -> str:
         """Get the file name of the dataset"""

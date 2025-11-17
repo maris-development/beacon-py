@@ -39,6 +39,14 @@ class Client:
             raise Exception(f"Failed to connect to server: {response.text}")
         else:
             print("Connected to: {} server successfully".format(self.session.base_url))
+            print("Beacon Version:", self.get_server_info()['beacon_version'])
+            
+    def get_server_info(self) -> dict:
+        """Get the server info"""
+        response = self.session.get("/api/info")
+        if response.status_code != 200:
+            raise Exception(f"Failed to get server info: {response.text}")
+        return response.json()
 
     def available_columns(self) -> list[str]:
         """Get all the available columns for the default data table"""
@@ -73,7 +81,7 @@ class Client:
     
     def list_datasets(self, pattern: str | None = None, limit : int | None = None, offset: int | None = None) -> dict[str, Dataset]:
         """Get all the datasets"""
-        response = self.session.get("/api/datasets", params={
+        response = self.session.get("/api/list-datasets", params={
             "pattern": pattern,
             "limit": limit,
             "offset": offset

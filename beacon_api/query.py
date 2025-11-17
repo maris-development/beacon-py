@@ -330,13 +330,27 @@ class Odv(Output):
 
 
 class Query:
-    def __init__(self, http_session: BaseBeaconSession, from_table: Optional[str] = None, from_file_path: Optional[str] = None):
+    def __init__(self, http_session: BaseBeaconSession, from_table: Optional[str] = None, from_file_path: Optional[str] = None, sql: Optional[str] = None):
         """
         A class to build and run Beacon JSON Queries. Best to construct this object using the Client object or Table object.
         """
         self.http_session = http_session
         self.from_table = from_table
         self.from_file_path = from_file_path
+        self.sql = sql
+    
+    @classmethod
+    def from_sql(cls, http_session: BaseBeaconSession, sql: str) -> Self:
+        """Sets the query to be built from a SQL string.
+
+        Args:
+            sql (str): The SQL string to build the query from.
+        Returns:
+            Self: The query builder instance.
+        """
+        query = cls(http_session=http_session)  # type: ignore
+        query.sql = sql
+        return query
 
     def select(self, selects: List[Select]) -> Self:
         self.selects = selects
@@ -576,6 +590,20 @@ class Query:
         """
         self.output = output
         return self
+    
+    def __compile_sql_query(self) -> str:
+        # Convert datetime objects to ISO format strings
+        # This is necessary for JSON serialization
+        def datetime_converter(o):
+            if isinstance(o, datetime):
+                return o.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            raise TypeError(f"Type {type(o)} not serializable")
+
+        query = {
+            "sql": self.sql,
+            "output": self.output.to_dict() if hasattr(self, "output") else {},
+        }
+        return json.dumps(query, default=datetime_converter)
 
     def compile_query(self) -> str:
         """Compiles the query into a Beacon JSON Query.
@@ -588,6 +616,8 @@ class Query:
         Returns:
             str: The compiled query as a JSON string.
         """
+        if self.sql is not None:
+            return self.__compile_sql_query()
         # Check if from_table is set
         from_ = None
         if not self.from_table and not self.from_file_path:
