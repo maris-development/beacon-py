@@ -30,16 +30,16 @@ dependencies = [
   "pandas>=2.0.0",
   "pyarrow >= 17.0.0,!=19.0.0",
   "xarray >= 2023.1.0",
+  "fsspec >= 2023.1.0",
+  "dask >= 2023.1.0",
+  "zarr>=2.18",
+  "networkx >= 3.0.0",
+  "matplotlib >= 3.0.0",
   "netCDF4 >= 1.5.0",
   "typing_extensions >= 4.10.0",
   "numpy >= 1.23.0",
-  "geopandas >= 1.0.0",
+  "geopandas >= 1.1.0",
 ]
-
-[project.optional-dependencies]
-zarr = ["zarr>=2.18"]
-profiling = ["networkx >= 3.0.0", "matplotlib >= 3.0.0"]
-geopandas = ["geopandas >= 1.1.0"]
 
 # [tool.setuptools]
 # packages = ["beacon_api"]  # OR use find if you prefer

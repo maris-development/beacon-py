@@ -1,9 +1,13 @@
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from io import BytesIO
+import tempfile, atexit, os
 import json
 import pandas as pd
 import geopandas as gpd
+import xarray as xr
+import dask.dataframe as dd
+import fsspec
 from pyarrow import parquet as pq
 from requests import Response
 import numpy as np
@@ -255,6 +259,17 @@ class NetCDF(Output):
     def to_dict(self) -> dict:
         return {"format": "netcdf"}
 
+@dataclass
+class NdNetCDF(Output):
+    dimension_columns: List[str]
+    def to_dict(self) -> dict:
+        return {
+            "format": {
+                "nd_netcdf": {
+                    "dimension_columns": self.dimension_columns
+                }
+            }
+        }
 
 @dataclass
 class Arrow(Output):
@@ -754,6 +769,64 @@ class Query:
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:  # skip keep-alive chunks
                         f.write(chunk)
+                        
+    def to_nd_netcdf(self, filename: str, dimension_columns: List[str]):
+        """Exports the query results to an nd NetCDF file.
+
+        This method sets the output format to nd NetCDF, executes the query, and writes the resulting data to the specified file.
+
+        Args:
+            filename (str): The path to the file where the nd NetCDF data will be saved.
+            dimension_columns (list[str]): The list of columns to use as dimensions in the nd NetCDF file.
+        Returns:
+            None
+        """
+        self.set_output(NdNetCDF(dimension_columns=dimension_columns))
+        response = self.run()
+
+        with open(filename, "wb") as f:
+            # Write the content of the response to a file
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:  # skip keep-alive chunks
+                    f.write(chunk)
+                    
+    def to_xarray_dataset(self, dimension_columns: List[str], chunks: Union[dict, None] = None, auto_cleanup=True) -> xr.Dataset:
+        """Converts the query results to an xarray Dataset with n-dimensional structure.
+
+        Args:
+            dimension_columns (list[str]): The list of columns to use as dimensions in the xarray Dataset.
+
+        Returns:
+            xarray.Dataset: The query results as an xarray Dataset.
+        """
+        # create tempfile for the netcdf file
+        fd, path = tempfile.mkstemp(suffix=".nc")
+        self.to_nd_netcdf(filename=path, dimension_columns=dimension_columns)
+
+        ds = xr.open_dataset(path)
+        # register for cleanup the tempfile
+        if auto_cleanup:
+            atexit.register(lambda: os.path.exists(path) and os.remove(path))
+        
+        return ds
+    
+    def to_dask_dataframe(self, backend: str = "pyarrow", name: str = "data.parquet") -> dd.DataFrame:
+        """Converts the query results to a dask DataFrame. 
+        Args:
+            backend (str): The backend to use for reading the data from Beacon. Defaults to "pyarrow" via Parquet.
+        Returns:
+            dask.dataframe: The query results as a dask DataFrame.
+        """
+        if backend == "pyarrow":
+            self.set_output(Parquet())
+            response = self.run()
+            bytes_io = BytesIO(response.content)
+            memfs = fsspec.filesystem("memory")
+            path = f"memory://{name}"
+            memfs.write_bytes(path, bytes_io.getvalue())
+            return dd.read_parquet(path, filesystem=memfs)
+        else:
+            raise ValueError(f"Unsupported backend: {backend}")
 
     def to_arrow(self, filename: str):
         """
