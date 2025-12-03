@@ -32,6 +32,8 @@ from .functions import *
 from .output import *
 from .select import *
 from .filter import *
+from .distinct import *
+from .sort import *
 from ..session import BaseBeaconSession
 
 class BaseQuery:
