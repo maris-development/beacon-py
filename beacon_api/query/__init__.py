@@ -247,11 +247,15 @@ class JSONQuery(BaseQuery):
         self._from = _from
         self.selects = []
         self.filters = []
+        self.sorts = []
+        self.distinct = None
     
     def compile(self) -> dict:
         return {
             "select": [s.to_dict() for s in self.selects],
             "filters": [f.to_dict() for f in self.filters] if self.filters else None,
+            "distinct": self.distinct.to_dict() if self.distinct else None,
+            "sort": [s.to_dict() for s in self.sorts] if self.sorts else None,
             **self._from.to_dict(),
         }
     
@@ -453,4 +457,29 @@ class JSONQuery(BaseQuery):
             Self: The query builder instance.
         """
         self.filters.append(IsNotNullFilter(column=column))
+        return self
+    
+    def set_distinct(self, columns: list[str]) -> Self:
+        """Adds a DISTINCT clause to the query.
+
+        Args:
+            columns (list[str]): The list of columns to apply DISTINCT on.
+
+        Returns:
+            Self: The query builder instance.
+        """
+        self.distinct = Distinct(columns=columns)
+        return self
+    
+    def add_sort(self, column: str, ascending: bool = True) -> Self:
+        """Adds a SORT clause to the query.
+
+        Args:
+            column (str): The name of the column to sort by.
+            ascending (bool, optional): Whether to sort in ascending order. Defaults to True.
+
+        Returns:
+            Self: The query builder instance.
+        """
+        self.sorts.append(SortColumn(column=column, ascending=ascending))
         return self

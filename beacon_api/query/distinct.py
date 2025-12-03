@@ -1,8 +1,15 @@
 
 from dataclasses import dataclass
-from datetime import datetime
 from .node import QueryNode
 
-
+@dataclass
 class Distinct(QueryNode):
-    pass
+    columns: list[str]
+    
+    def to_dict(self) -> dict:
+        return {
+            "distinct": {
+                "on": self.columns,
+                "select": self.columns
+            }
+        }
