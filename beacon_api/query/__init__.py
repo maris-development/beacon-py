@@ -35,17 +35,13 @@ from .filter import *
 from ..session import BaseBeaconSession
 
 class BaseQuery:
-    output_format: Output | None
-    http_session: BaseBeaconSession
-    
     def __init__(self, http_session: BaseBeaconSession):
         self.http_session = http_session
         self.output_format = None
         
     @abstractmethod
     def compile(self) -> dict:
-        """Compile the query into a dictionary representation"""
-        raise NotImplementedError("Subclasses must implement compile method")
+        ...
     
     def set_output(self, output_format: Output) -> None:
         """Set the output format for the query"""
@@ -56,9 +52,9 @@ class BaseQuery:
         return {
             "output": self.output_format.to_dict() if self.output_format else None
         }
-
-    def execute(self) -> Response:
-        """Run the query and return the response"""
+        
+    def compile_query(self) -> str:
+        """Compile the query to a JSON string"""
         query_body_dict = self.output() | self.compile()
         
         def datetime_converter(o):
@@ -67,7 +63,19 @@ class BaseQuery:
             raise TypeError(f"Type {type(o)} not serializable")
 
         query_body = json.dumps(query_body_dict, default=datetime_converter)
-        
+        return query_body
+
+    def explain(self) -> dict:
+        """Get the query plan"""
+        query = self.compile_query()
+        response = self.http_session.post("/api/explain-query", data=query)
+        if response.status_code != 200:
+            raise Exception(f"Explain query failed: {response.text}")
+        return response.json()
+
+    def execute(self) -> Response:
+        """Run the query and return the response"""
+        query_body = self.compile_query()
         print(f"Running query: {query_body}")
         response = self.http_session.post("/api/query", data=query_body)
         if response.status_code != 200:
@@ -231,19 +239,18 @@ class SQLQuery(BaseQuery):
         return {"sql": self.query}
 
 class JSONQuery(BaseQuery):
-    selects: List[Select] = []
-    _from: From
-    filters: List[Filter] = []
-    
     def __init__(self, http_session: BaseBeaconSession, _from: From):
+        print(f"Creating JSONQuery with from: {_from}")
         super().__init__(http_session)
         self._from = _from
+        self.selects = []
+        self.filters = []
     
     def compile(self) -> dict:
         return {
             "select": [s.to_dict() for s in self.selects],
             "filters": [f.to_dict() for f in self.filters] if self.filters else None,
-            "from": self._from.to_dict(),
+            **self._from.to_dict(),
         }
     
     def select(self, selects: List[Select]) -> Self:

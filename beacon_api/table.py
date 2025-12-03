@@ -1,10 +1,11 @@
 from __future__ import annotations
 import datetime
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 import pyarrow as pa
 
 from .session import BaseBeaconSession
-from .query import AndFilter, Query, RangeFilter
+from .query import JSONQuery, RangeFilter, AndFilter
+from .query._from import FromTable
 
 arrow_py_type = {
     "int8": int,
@@ -31,8 +32,9 @@ arrow_py_type = {
     "timestamp[ns]": datetime,
 }
 
-
 class DataTable:
+    """Represents a data table available on the Beacon Node."""
+    
     # Constructor for DataTable
     def __init__(self, http_session: BaseBeaconSession, table_name: str):
         self.http_session = http_session
@@ -44,7 +46,7 @@ class DataTable:
         if response.status_code != 200:
             raise Exception(f"Failed to get table config: {response.text}")
         table_config = response.json()
-        self.table_type = table_config.get("type", "unknown")
+        self.table_type = table_config.get("table_type", "unknown")
         self.description = table_config.get("description", None)
 
     def get_table_description(self) -> str:
@@ -87,11 +89,10 @@ class DataTable:
             
             else:
                 raise Exception(f"Unsupported data type for field {field['name']}: {field_type}")
-            
         
         return pa.schema(fields)
     
-    def get_table_type(self) -> dict:
+    def get_table_type(self) -> Union[dict, str]:
         """Get the type of the table"""
         return self.table_type
     
@@ -99,7 +100,7 @@ class DataTable:
     def subset(self, longitude_column: str, latitude_column: str, time_column: str, depth_column: str, columns: list[str],
                          bbox: Optional[tuple[float, float, float, float]] = None,
                          depth_range: Optional[tuple[float, float]] = None,
-                         time_range: Optional[tuple[datetime.datetime, datetime.datetime]] = None) -> Query:
+                         time_range: Optional[tuple[datetime.datetime, datetime.datetime]] = None) -> JSONQuery:
         """
         Create a query to subset the table based on the provided parameters.
         
@@ -133,10 +134,10 @@ class DataTable:
             query.add_filter(RangeFilter(time_column, time_range[0].strftime("%Y-%m-%dT%H:%M:%S"), time_range[1].strftime("%Y-%m-%dT%H:%M:%S")))
         return query
 
-    def query(self) -> Query:
+    def query(self) -> JSONQuery:
         """Create a new query for the selected table.
         The query can then be built using the Query methods.
         Returns:
-            Query: A new query object.
+            JSONQuery: A new query object.
         """
-        return Query(self.http_session, self.table_name)
+        return JSONQuery(self.http_session, _from=FromTable(self.table_name))

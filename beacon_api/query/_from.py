@@ -15,6 +15,19 @@ class FromTable(From):
         return {"from": self.table}
 
 @dataclass
+class FromBBFDataset(From):
+    paths: list[str]
+    
+    def to_dict(self) -> dict:
+        return {
+            "from": {
+                "bbf": {
+                    "paths": self.paths
+                }
+            }
+        }
+
+@dataclass
 class FromParquetDataset(From):
     paths: list[str]
     
@@ -56,7 +69,7 @@ class FromNetCDFDataset(From):
 @dataclass
 class FromCSVDataset(From):
     paths: list[str]
-    delimiter: str | None = None
+    delimiter: str = ','
     
     def to_dict(self) -> dict:
         return {

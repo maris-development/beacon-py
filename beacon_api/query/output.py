@@ -13,7 +13,6 @@ except ImportError:
 class Output(QueryNode):
     pass
 
-
 @dataclass
 class NetCDF(Output):
     def to_dict(self) -> dict:
