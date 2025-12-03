@@ -6,7 +6,7 @@ Beacon tables (also called *data collections*) are exposed as instances of `beac
 
 ```python
 tables = client.list_tables()
-stations = tables["default"]
+stations = tables["stations-collection"]
 
 print(stations.table_name)
 ```
