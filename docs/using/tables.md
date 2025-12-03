@@ -1,30 +1,77 @@
-# Data Tables / Data Collections
+# Working with tables
 
-In the Beacon Data Lake, data is organized into tables (also referred to as data collections). Each table contains a set of columns originating from the datasets stored inside the data lake. You can interact with these tables using the `beacon_api` package to perform queries and retrieve data.
-Each table is represented by a `Table` object in the `beacon_api` package. You can obtain a `Table` object by listing the available tables in the connected Beacon Data Lake using the `list_tables` method of the `Client` object.
+Beacon tables (also called *data collections*) are exposed as instances of `beacon_api.table.DataTable`. They wrap server metadata so you can quickly describe the content of a table before running costly queries.
 
-```py
+## Fetch a table
+
+```python
 tables = client.list_tables()
-print(tables)  # This will print a dictionary of available tables
+stations = tables["default"]
+
+print(stations.table_name)
 ```
 
-You can access a specific table by its name from the dictionary returned by `list_tables`. For example, to access a table named `vessels`, you can do the following:
+`list_tables()` returns a dictionary, so simply index into it using the table name you are interested in.
 
-```py
-vessels_table = tables['vessels']
-print(vessels_table)  # This will print the Table object for the 'vessels' table
+## Metadata helpers
+
+Every `DataTable` fetches `/api/table-config?table_name=...` during initialization. Access that metadata via:
+
+```python
+stations.get_table_description()
+stations.get_table_type()
 ```
 
-Once you have a `Table` object, you can view its schema (available columns) using the `get_table_schema` method:
+Use `get_table_schema_arrow()` or `get_table_schema()` to inspect the schema before building a query:
 
-```py
-schema = vessels_table.get_table_schema()
-print(schema)  # This will print the schema of the 'vessels' table
+```python
+schema = stations.get_table_schema_arrow()
+print(schema)
+
+# convert to a dict of {column_name: python_type}
+schema_dict = stations.get_table_schema()
 ```
 
-You can also create and execute queries on the table using the `query` method of the `Table` object. This will return a `Query` object that you can use to build and execute your query.
+The schema result is a PyArrow `Schema`, meaning you can introspect field metadata, dtypes, or reuse it when constructing downstream DataFrames.
 
-```py
-query = vessels_table.query()
-# You can then build your query using the Query methods
+## Create a query from a table
+
+Once you know which columns you need, call `stations.query()` to obtain a `JSONQuery` builder:
+
+```python
+query = (
+    stations
+    .query()
+    .add_select_column("LONGITUDE")
+    .add_select_column("LATITUDE")
+    .add_select_column("JULD")
+    .add_range_filter("JULD", "2024-01-01T00:00:00", "2024-03-01T00:00:00")
+)
+
+df = query.to_pandas_dataframe()
 ```
+
+Because `JSONQuery` is fluent, you can keep chaining selects, filters, sorting, or distinct clauses before materializing the results. Refer to [Querying the Beacon Data Lake](querying.md) for every available builder method.
+
+## Subset convenience helper
+
+For spatial/temporal slices there is `DataTable.subset()`. It adds the longitude, latitude, depth, and time selections plus the appropriate filters for you:
+
+```python
+from datetime import datetime
+
+subset = stations.subset(
+    longitude_column="LONGITUDE",
+    latitude_column="LATITUDE",
+    time_column="JULD",
+    depth_column="PRES",
+    columns=["TEMP", "PSAL", ".featureType"],
+    bbox=(-20, 40, -10, 55),
+    depth_range=(0, 50),
+    time_range=(datetime(2024, 1, 1), datetime(2024, 6, 1)),
+)
+
+subset_df = subset.to_pandas_dataframe()
+```
+
+Because `subset()` simply returns a `JSONQuery`, you can continue chaining methods—for example, add equals filters or change the output format with `subset.to_geoparquet(...)`.

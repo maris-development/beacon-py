@@ -3,4 +3,3 @@ from .table import *
 from .dataset import *
 from .query import *
 from .session import *
-from .query import *

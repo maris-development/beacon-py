@@ -1,62 +1,64 @@
 site_name: Beacon-Api Docs
 theme:
-  name: material
-  features:
-      - navigation.expand
-      - content.code.copy
-      - content.code.annotate 
-      - search.share
-  palette: 
-    # Palette toggle for light mode
-    - scheme: default
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
+    name: material
+    features:
+        - navigation.expand
+        - content.code.copy
+        - content.code.annotate
+        - search.share
+    palette:
+        # Palette toggle for light mode
+        - scheme: default
+          toggle:
+              icon: material/brightness-7
+              name: Switch to dark mode
 
-    # Palette toggle for dark mode
-    - scheme: slate
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
+        # Palette toggle for dark mode
+        - scheme: slate
+          toggle:
+              icon: material/brightness-4
+              name: Switch to light mode
 
 repo_url: https://github.com/maris-development/beacon-py
 plugins:
-  - search
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: ["."]   # make MkDocs see your local package
-          options:
-            docstring_style: numpy
+    - search
+    - mkdocstrings:
+          handlers:
+              python:
+                  paths: ["."] # make MkDocs see your local package
+                  options:
+                      docstring_style: numpy
 extra:
-  version:
-    provider: mike
+    version:
+        provider: mike
 
 markdown_extensions:
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
+    - admonition
+    - pymdownx.details
+    - pymdownx.superfences
+    - pymdownx.highlight:
+          anchor_linenums: true
+          line_spans: __span
+          pygments_lang_class: true
+    - pymdownx.inlinehilite
+    - pymdownx.snippets
 
 nav:
-  - Home: index.md
-  - Installation: installation.md
-  - Getting Started: getting_started.md
-  - Using The Data Lake:
-    - Exploring: using/exploring.md
-    - Querying: using/querying.md
-    - Tables: using/tables.md
-  - Examples: 
-    - World Ocean Database: examples/wod.md
-  - API Reference: 
-      - Client: reference/client.md
-      - Query: reference/query.md
-      - Functions: reference/functions.md
-      - Table: reference/table.md
-  - Changelog: changelog.md
-  - Beacon Data Lake: https://maris-development.github.io/beacon/
+    - Home: index.md
+    - Installation: installation.md
+    - Getting Started: getting_started.md
+    - Using The Data Lake:
+          - Exploring: using/exploring.md
+          - Querying: using/querying.md
+          - Tables: using/tables.md
+          - Datasets: using/datasets.md
+    - Examples:
+          - World Ocean Database: examples/wod.md
+    - API Reference:
+          - Client: reference/client.md
+          - Query: reference/query.md
+          - Dataset: reference/dataset.md
+          - Functions: reference/functions.md
+          - Table: reference/table.md
+    - Changelog: changelog.md
+    - Beacon Data Lake: https://maris-development.github.io/beacon/
