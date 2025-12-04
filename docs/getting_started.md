@@ -66,7 +66,7 @@ All table and dataset helpers return a `JSONQuery`, a fluent builder with chaina
 ```python
 
 df = (
-    tables['default'] # Select the 'default' table as our data source
+    tables['argo'] # Select the 'default' table as our data source
     .query() # Create a new query on the selected table
     .add_select_column("LONGITUDE") # Select the LONGITUDE column
     .add_select_column("LATITUDE") # Select the LATITUDE column
@@ -127,6 +127,11 @@ subset_query = stations.subset(
 Every query inherits rich output helpers from `BaseQuery`:
 
 ```python
+query = tables['argo'].query()
+
+... # build up the query as shown above
+
+# Serialize results into various formats
 df = query.to_pandas_dataframe()
 gdf = query.to_geo_pandas_dataframe("LONGITUDE", "LATITUDE")
 
@@ -151,9 +156,9 @@ When you already have SQL, skip the builder and call:
 
 ```python
 sql = client.sql_query("""
-    SELECT lon, lat, temperature
+    SELECT lon, lat, juld, temperature
     FROM <some-collection-name>
-    WHERE juld BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-06-30'
+    WHERE juld BETWEEN '2024-01-01T00:00:00' AND '2024-06-30T23:59:59'
 """)
 
 df = sql.to_pandas_dataframe()
