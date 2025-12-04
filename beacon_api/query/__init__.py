@@ -2,6 +2,7 @@ import atexit
 import json
 import os
 import tempfile
+from typing import Generator, Iterator
 import pandas as pd
 import geopandas as gpd
 import xarray as xr
@@ -11,6 +12,9 @@ from io import BytesIO
 from abc import abstractmethod
 from requests import Response
 from pyarrow import parquet as pq
+import pyarrow as pa
+import pyarrow.ipc as ipc
+
 from datetime import datetime
 
 try:
@@ -75,16 +79,30 @@ class BaseQuery:
             raise Exception(f"Explain query failed: {response.text}")
         return response.json()
 
-    def execute(self) -> Response:
+    def execute(self, stream=False) -> Response:
         """Run the query and return the response"""
         query_body = self.compile_query()
         print(f"Running query: {query_body}")
-        response = self.http_session.post("/api/query", data=query_body)
+        response = self.http_session.post("/api/query", data=query_body, stream=stream)
         if response.status_code != 200:
             raise Exception(f"Query failed: {response.text}")
         if len(response.content) == 0:
             raise Exception("Query returned no content")
         return response
+    
+    def execute_streaming(self) -> Iterator[pa.RecordBatch]:
+        """Run the query and return the response as a streaming response"""
+        if not self.http_session.version_at_least(1, 5, 0):
+            raise Exception("Streaming queries require the Beacon Node version to be atleast 1.5.0 or higher")
+        
+        query_body = self.compile_query()
+        print(f"Running query: {query_body}")
+        response = self.http_session.post("/api/query", data=query_body, stream=True)
+
+        stream = ipc.open_stream(response.raw)
+
+        for batch in stream:
+            yield batch
     
     def to_xarray_dataset(self, dimension_columns: List[str], chunks: Union[dict, None] = None, auto_cleanup=True) -> xr.Dataset:
         """Converts the query results to an xarray Dataset with n-dimensional structure.
@@ -255,7 +273,6 @@ class JSONQuery(BaseQuery):
             "select": [s.to_dict() for s in self.selects],
             "filters": [f.to_dict() for f in self.filters] if self.filters else None,
             "distinct": self.distinct.to_dict() if self.distinct else None,
-            "sort": [s.to_dict() for s in self.sorts] if self.sorts else None,
             **self._from.to_dict(),
         }
     
