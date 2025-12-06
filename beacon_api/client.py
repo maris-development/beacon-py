@@ -219,3 +219,150 @@ class Client:
             depth_range=depth_range,
             time_range=time_range
         )
+        
+    def upload_dataset(self, file_path: str, destination_path: str) -> None:
+        """Upload a local dataset file to the Beacon Node.
+
+        Args:
+            file_path: Path to the local file to upload.
+            destination_path: Destination path on the Beacon Node.
+
+        Raises:
+            Exception: If the upload fails.
+        """
+        
+        # Require Beacon server version >= 1.5.0
+        if not self.session.version_at_least(1,5,0):
+            raise Exception("Uploading datasets requires Beacon server version 1.5.0 or higher")
+        
+        # Requires admin privileges
+        if not self.session.is_admin():
+            raise Exception("Uploading datasets requires admin privileges")
+        
+        # Upload the file using a multipart/form-data POST request
+        # the first part should be the prefix of the destination path eg. /data/datasets/ of /data/datasets/myfile.parquet
+        prefix = '/'.join(destination_path.split('/')[:-1])
+        # File name is the last part
+        file_name = destination_path.split('/')[-1]
+    
+        with open(file_path, 'rb') as f:
+            files = {
+                'prefix': (None, prefix),
+                'file': (file_name, f)
+            }
+            response = self.session.post("/api/upload-dataset", files=files)
+            if response.status_code != 200:
+                raise Exception(f"Failed to upload dataset: {response.text}")        
+            
+
+    def download_dataset(self, dataset_path: str, local_path: str) -> None:
+        """Download a dataset file from the Beacon Node to a local path.
+
+        Args:
+            dataset_path: Path to the dataset file on the Beacon Node.
+            local_path: Local path where the file will be saved.
+        Raises:
+            Exception: If the download fails.
+        """
+        # Require Beacon server version >= 1.5.0
+        if not self.session.version_at_least(1,5,0):
+            raise Exception("Downloading datasets requires Beacon server version 1.5.0 or higher")
+        
+        # Requires admin privileges
+        if not self.session.is_admin():
+            raise Exception("Downloading datasets requires admin privileges")
+        
+        response = self.session.get("/api/download-dataset", params={
+            "file_path": dataset_path
+        }, stream=True)
+        if response.status_code != 200:
+            raise Exception(f"Failed to download dataset: {response.text}")
+        
+        with open(local_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+    def delete_dataset(self, dataset_path: str) -> None:
+        """Delete a dataset file from the Beacon Node.
+
+        Args:
+            dataset_path: Path to the dataset file on the Beacon Node.
+            
+        Raises:
+            Exception: If the deletion fails.
+        """
+        
+        # Require Beacon server version >= 1.5.0
+        if not self.session.version_at_least(1,5,0):
+            raise Exception("Deleting datasets requires Beacon server version 1.5.0 or higher")
+        
+        # Requires admin privileges
+        if not self.session.is_admin():
+            raise Exception("Deleting datasets requires admin privileges")
+        
+        response = self.session.delete("/api/delete-dataset", params={
+            "file_path": dataset_path
+        })
+        if response.status_code != 200:
+            raise Exception(f"Failed to delete dataset: {response.text}")
+        
+    def create_logical_table(self, table_name: str, dataset_glob_paths: list[str], file_format: str, description: str | None = None, **kwargs) -> None:
+        """Create a new logical table on the Beacon Node.
+
+        Args:
+            table_name: Name of the new logical table.
+            dataset_glob_paths: List of dataset file paths (can include glob patterns).
+            file_format: Format of the dataset files (e.g. "parquet", "csv", "zarr").
+            description: Optional description of the logical table.
+            **kwargs: Additional parameters specific to the file format. (e.g. delimiter for CSV, Zarr statistics columns)
+
+        Raises:
+            Exception: If the creation fails.
+        """
+        
+        # Require Beacon server version >= 1.4.0
+        if not self.session.version_at_least(1,4,0):
+            raise Exception("Creating logical tables requires Beacon server version 1.4.0 or higher")
+        
+        # Requires admin privileges
+        if not self.session.is_admin():
+            raise Exception("Creating logical tables requires admin privileges")
+        
+        json_data = {
+            "table_name": table_name,
+            "table_type": {
+                "logical": {
+                    "glob_paths": dataset_glob_paths,
+                    "file_format": file_format,
+                    **kwargs
+                }
+            },
+            "description": description
+        }
+        
+        response = self.session.post("/api/create-logical-table", json=json_data)
+        if response.status_code != 200:
+            raise Exception(f"Failed to create logical table: {response.text}")
+        
+    def delete_table(self, table_name: str) -> None:
+        """Delete a logical table from the Beacon Node.
+
+        Args:
+            table_name: Name of the logical table to delete.
+        Raises:
+            Exception: If the deletion fails.
+        """
+        
+        # Require Beacon server version >= 1.4.0
+        if not self.session.version_at_least(1,4,0):
+            raise Exception("Deleting logical tables requires Beacon server version 1.4.0 or higher")
+        
+        # Requires admin privileges
+        if not self.session.is_admin():
+            raise Exception("Deleting logical tables requires admin privileges")
+        
+        response = self.session.delete("/api/delete-table", params={
+            "table_name": table_name
+        })
+        if response.status_code != 200:
+            raise Exception(f"Failed to delete table: {response.text}")
