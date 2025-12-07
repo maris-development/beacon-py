@@ -1,8 +1,8 @@
 name: docs
 on:
     push:
-        branches:
-            - main
+        tags:
+            - "v*" # triggers on tags like v1.0.0, v2.3, etc.
 permissions:
     contents: write
 jobs:
@@ -14,6 +14,19 @@ jobs:
               run: |
                   git config user.name github-actions[bot]
                   git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+            - name: Extract version (keep the v)
+              id: vars
+              run: |
+                  # github.ref = refs/tags/v1.2.3
+                  TAG="${GITHUB_REF#refs/tags/}"   # TAG = v1.2.3
+                  VERSION="${TAG#v}"               # VERSION = 1.2.3
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+            - name: Show version
+              run: |
+                  echo "Version is: ${{ steps.vars.outputs.version }}"
+
             - uses: actions/setup-python@v5
               with:
                   python-version: 3.x
@@ -24,5 +37,5 @@ jobs:
                   path: ~/.cache
                   restore-keys: |
                       mkdocs-material-
-            - run: pip install mkdocs-material mkdocstrings[python]
-            - run: mkdocs gh-deploy --force
+            - run: pip install mkdocs-material mkdocstrings[python] mike
+            - run: mike deploy --push --update-aliases "${{ steps.vars.outputs.version }}" latest
