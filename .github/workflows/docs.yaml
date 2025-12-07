@@ -38,4 +38,6 @@ jobs:
                   restore-keys: |
                       mkdocs-material-
             - run: pip install mkdocs-material mkdocstrings[python] mike
-            - run: mike deploy --push --update-aliases "${{ steps.vars.outputs.version }}" latest
+            - run: |
+                  git fetch origin gh-pages --depth=1
+                  mike deploy --push --update-aliases "${{ steps.vars.outputs.version }}" latest
