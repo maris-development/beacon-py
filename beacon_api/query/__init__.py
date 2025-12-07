@@ -90,9 +90,9 @@ class BaseQuery:
             raise Exception("Query returned no content")
         return response
     
-    def execute_streaming(self) -> Iterator[pa.RecordBatch]:
+    def execute_streaming(self, force=False) -> Iterator[pa.RecordBatch]:
         """Run the query and return the response as a streaming response"""
-        if not self.http_session.version_at_least(1, 5, 0):
+        if not force and not self.http_session.version_at_least(1, 5, 0):
             raise Exception("Streaming queries require the Beacon Node version to be atleast 1.5.0 or higher")
         
         query_body = self.compile_query()
@@ -104,7 +104,7 @@ class BaseQuery:
         for batch in stream:
             yield batch
     
-    def to_xarray_dataset(self, dimension_columns: List[str], chunks: Union[dict, None] = None, auto_cleanup=True) -> xr.Dataset:
+    def to_xarray_dataset(self, dimension_columns: List[str], chunks: Union[dict, None] = None, auto_cleanup=True, force=False) -> xr.Dataset:
         """Converts the query results to an xarray Dataset with n-dimensional structure.
 
         Args:
@@ -113,6 +113,9 @@ class BaseQuery:
         Returns:
             xarray.Dataset: The query results as an xarray Dataset.
         """
+        if not force and not self.http_session.version_at_least(1, 5, 0):
+            raise Exception("xarray dataset output requires the Beacon Node version to be atleast 1.5.0 or higher")
+        
         # create tempfile for the netcdf file
         fd, path = tempfile.mkstemp(suffix=".nc")
         self.to_nd_netcdf(file_path=path, dimension_columns=dimension_columns)
@@ -123,16 +126,6 @@ class BaseQuery:
             atexit.register(lambda: os.path.exists(path) and os.remove(path))
         
         return ds
-    
-    def to_dask_dataframe(self, temp_name: str = "temp.parquet") -> dd.DataFrame:
-        """Execute the query and return the results as a Dask DataFrame"""
-        self.set_output(Parquet())
-        response = self.execute()
-        bytes_io = BytesIO(response.content)
-        memfs = fsspec.filesystem("memory")
-        path = f"memory://{temp_name}"
-        memfs.write_bytes(path, bytes_io.getvalue())
-        return dd.read_parquet(path, filesystem=memfs)
 
     def to_pandas_dataframe(self) -> pd.DataFrame:
         """Execute the query and return the results as a pandas DataFrame"""
@@ -218,9 +211,9 @@ class BaseQuery:
                     if chunk:  # skip keep-alive chunks
                         f.write(chunk)
                         
-    def to_nd_netcdf(self, file_path: str, dimension_columns: list[str], streaming_chunk_size: int = 1024*1024):
+    def to_nd_netcdf(self, file_path: str, dimension_columns: list[str], streaming_chunk_size: int = 1024*1024, force: bool = False):
         """Execute the query and save the results as an NdNetCDF file"""
-        if not self.http_session.version_at_least(1, 5, 0):
+        if not force and not self.http_session.version_at_least(1, 5, 0):
             raise Exception("NdNetCDF output format requires the Beacon Node version to be atleast 1.5.0 or higher")
         self.set_output(NdNetCDF(dimension_columns=dimension_columns))
         response = self.execute()

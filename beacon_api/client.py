@@ -115,7 +115,7 @@ class Client:
         
         return data_tables
     
-    def list_datasets(self, pattern: str | None = None, limit : int | None = None, offset: int | None = None) -> dict[str, Dataset]:
+    def list_datasets(self, pattern: str | None = None, limit : int | None = None, offset: int | None = None, force=False) -> dict[str, Dataset]:
         """Enumerate datasets registered with the Beacon node.
 
         Args:
@@ -130,7 +130,7 @@ class Client:
             Exception: If the Beacon Node version < 1.4.0 or the HTTP call fails.
         """
         
-        if not self.session.version_at_least(1,4,0):
+        if not force and not self.session.version_at_least(1,4,0):
             raise Exception("Listing datasets requires Beacon server version 1.4.0 or higher")
         
         response = self.session.get("/api/list-datasets", params={
@@ -220,7 +220,7 @@ class Client:
             time_range=time_range
         )
         
-    def upload_dataset(self, file_path: str, destination_path: str) -> None:
+    def upload_dataset(self, file_path: str, destination_path: str, force=False) -> None:
         """Upload a local dataset file to the Beacon Node.
 
         Args:
@@ -232,7 +232,7 @@ class Client:
         """
         
         # Require Beacon server version >= 1.5.0
-        if not self.session.version_at_least(1,5,0):
+        if not force and not self.session.version_at_least(1,5,0):
             raise Exception("Uploading datasets requires Beacon server version 1.5.0 or higher")
         
         # Requires admin privileges
@@ -255,7 +255,7 @@ class Client:
                 raise Exception(f"Failed to upload dataset: {response.text}")        
             
 
-    def download_dataset(self, dataset_path: str, local_path: str) -> None:
+    def download_dataset(self, dataset_path: str, local_path: str, force=False) -> None:
         """Download a dataset file from the Beacon Node to a local path.
 
         Args:
@@ -265,7 +265,7 @@ class Client:
             Exception: If the download fails.
         """
         # Require Beacon server version >= 1.5.0
-        if not self.session.version_at_least(1,5,0):
+        if not force and not self.session.version_at_least(1,5,0):
             raise Exception("Downloading datasets requires Beacon server version 1.5.0 or higher")
         
         # Requires admin privileges
@@ -282,7 +282,7 @@ class Client:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-    def delete_dataset(self, dataset_path: str) -> None:
+    def delete_dataset(self, dataset_path: str, force=False) -> None:
         """Delete a dataset file from the Beacon Node.
 
         Args:
@@ -293,7 +293,7 @@ class Client:
         """
         
         # Require Beacon server version >= 1.5.0
-        if not self.session.version_at_least(1,5,0):
+        if not force and not self.session.version_at_least(1,5,0):
             raise Exception("Deleting datasets requires Beacon server version 1.5.0 or higher")
         
         # Requires admin privileges
@@ -306,7 +306,7 @@ class Client:
         if response.status_code != 200:
             raise Exception(f"Failed to delete dataset: {response.text}")
         
-    def create_logical_table(self, table_name: str, dataset_glob_paths: list[str], file_format: str, description: str | None = None, **kwargs) -> None:
+    def create_logical_table(self, table_name: str, dataset_glob_paths: list[str], file_format: str, description: str | None = None, force=False, **kwargs) -> None:
         """Create a new logical table on the Beacon Node.
 
         Args:
@@ -321,7 +321,7 @@ class Client:
         """
         
         # Require Beacon server version >= 1.4.0
-        if not self.session.version_at_least(1,4,0):
+        if not force and not self.session.version_at_least(1,4,0):
             raise Exception("Creating logical tables requires Beacon server version 1.4.0 or higher")
         
         # Requires admin privileges
@@ -344,7 +344,7 @@ class Client:
         if response.status_code != 200:
             raise Exception(f"Failed to create logical table: {response.text}")
         
-    def delete_table(self, table_name: str) -> None:
+    def delete_table(self, table_name: str, force=False) -> None:
         """Delete a logical table from the Beacon Node.
 
         Args:
@@ -354,7 +354,7 @@ class Client:
         """
         
         # Require Beacon server version >= 1.4.0
-        if not self.session.version_at_least(1,4,0):
+        if not force and not self.session.version_at_least(1,4,0):
             raise Exception("Deleting logical tables requires Beacon server version 1.4.0 or higher")
         
         # Requires admin privileges
