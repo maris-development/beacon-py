@@ -189,6 +189,13 @@ class RangeFilter(Filter):
     gt_eq: Union[str, int, float, datetime, None] = None
     lt_eq: Union[str, int, float, datetime, None] = None
 
+
+@dataclass
+class ExclusiveRangeFilter(Filter):
+    column: str
+    gt: Union[str, int, float, datetime, None] = None
+    lt: Union[str, int, float, datetime, None] = None
+
 @dataclass
 class EqualsFilter(Filter):
     column: str
@@ -208,6 +215,9 @@ class FilterIsNull(Filter):
     def to_dict(self) -> dict:
         return {"is_null": {"column": self.column}}
 
+@dataclass 
+class IsNullFilter(FilterIsNull):
+    pass
 
 @dataclass
 class IsNotNullFilter(Filter):
@@ -486,6 +496,8 @@ class Query:
         column: str,
         gt_eq: Union[str, int, float, datetime, None] = None,
         lt_eq: Union[str, int, float, datetime, None] = None,
+        gt: Union[str, int, float, datetime, None] = None,
+        lt: Union[str, int, float, datetime, None] = None
     ) -> Self:
         """Adds a RANGE filter to the query.
 
@@ -493,13 +505,21 @@ class Query:
             column (str): The name of the column to filter.
             gt_eq (str | int | float | datetime | None, optional): The lower bound for the range filter. Defaults to None.
             lt_eq (str | int | float | datetime | None, optional): The upper bound for the range filter. Defaults to None.
-
+            gt (str | int | float | datetime | None, optional): The exclusive lower bound for the range filter. Defaults to None.
+            lt (str | int | float | datetime | None, optional): The exclusive upper bound for the range filter. Defaults to None.
+            
         Returns:
             Self: The query builder instance.
         """
         if not hasattr(self, "filters"):
             self.filters = []
-        self.filters.append(RangeFilter(column=column, gt_eq=gt_eq, lt_eq=lt_eq))
+            
+        if gt_eq is not None or lt_eq is not None:
+            self.filters.append(RangeFilter(column=column, gt_eq=gt_eq, lt_eq=lt_eq))
+
+        if gt is not None or lt is not None:
+            self.filters.append(ExclusiveRangeFilter(column=column, gt=gt, lt=lt))
+        
         return self
 
     def add_equals_filter(
