@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  # Run when you push any tag
+  push:
+    tags:
+      - "*"
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Determine version from tag
+        id: get_version
+        run: |
+          # Strip off the "refs/tags/" prefix to get just "1.2.3" (or whatever you tagged)
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Version is $VERSION"
+          echo "::set-output name=version::$VERSION"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+      - name: Update version for nightly
+        run: |
+          DATE=$(date +'%Y%m%d')
+          sed -i "s/version = .*/version = \"${{ steps.get_version.outputs.version }}\"/" pyproject.toml
+
+      - name: Build pure Python wheel
+        run: python -m build --wheel --outdir dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
