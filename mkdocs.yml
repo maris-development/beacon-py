@@ -60,7 +60,7 @@ nav:
     - Using The Data Lake:
           - Exploring: using/exploring.md
           - Querying: using/querying.md
-          - Tables: using/tables.md
+          - Tables (*collections): using/tables.md
           - Datasets: using/datasets.md
     - Examples:
           - World Ocean Database: examples/wod.md
