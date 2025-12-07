@@ -31,6 +31,8 @@ class BaseBeaconSession(requests.Session):
     def is_admin(self) -> bool:
         """Check if the session has admin privileges"""
         response = self.get("/api/admin/check")
+        if response.status_code == 401:
+            return False
         if response.status_code != 200:
             raise Exception(f"Failed to check admin status: {response.text}")
         data = response.json()

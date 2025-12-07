@@ -47,7 +47,7 @@ class Client:
         if basic_auth:
             if not isinstance(basic_auth, tuple) or len(basic_auth) != 2:
                 raise ValueError("Basic auth must be a tuple of (username, password)")
-            proxy_headers['Authorization'] = f'Basic {requests.auth._basic_auth_str(*basic_auth)}' # type: ignore
+            proxy_headers['Authorization'] = f'{requests.auth._basic_auth_str(*basic_auth)}' # type: ignore
         
         self.session = BaseBeaconSession(url)
         self.session.headers.update(proxy_headers)
@@ -239,20 +239,24 @@ class Client:
         if not self.session.is_admin():
             raise Exception("Uploading datasets requires admin privileges")
         
+        # We use requests directly here to support multipart/form-data 
+        auth_headers = {
+            "Authorization": self.session.headers.get("Authorization", "")
+        }
+        url = f"{self.session.base_url}/api/admin/upload-file"
+        
         # Upload the file using a multipart/form-data POST request
         # the first part should be the prefix of the destination path eg. /data/datasets/ of /data/datasets/myfile.parquet
         prefix = '/'.join(destination_path.split('/')[:-1])
         # File name is the last part
         file_name = destination_path.split('/')[-1]
-    
-        with open(file_path, 'rb') as f:
-            files = {
-                'prefix': (None, prefix),
-                'file': (file_name, f)
-            }
-            response = self.session.post("/api/upload-dataset", files=files)
-            if response.status_code != 200:
-                raise Exception(f"Failed to upload dataset: {response.text}")        
+        payload = {'prefix': prefix }
+        files=[
+            ('file',(file_name,open(file_path,'rb'),'application/octet-stream'))
+        ]
+        response = requests.request("POST", url, headers=auth_headers, data=payload, files=files)
+        if response.status_code != 200:
+            raise Exception(f"Failed to upload dataset: {response.text}")        
             
 
     def download_dataset(self, dataset_path: str, local_path: str, force=False) -> None:
@@ -272,7 +276,7 @@ class Client:
         if not self.session.is_admin():
             raise Exception("Downloading datasets requires admin privileges")
         
-        response = self.session.get("/api/download-dataset", params={
+        response = self.session.get("/api/admin/download-file", params={
             "file_path": dataset_path
         }, stream=True)
         if response.status_code != 200:
@@ -300,7 +304,7 @@ class Client:
         if not self.session.is_admin():
             raise Exception("Deleting datasets requires admin privileges")
         
-        response = self.session.delete("/api/delete-dataset", params={
+        response = self.session.delete("/api/admin/delete-file", params={
             "file_path": dataset_path
         })
         if response.status_code != 200:
@@ -340,9 +344,9 @@ class Client:
             "description": description
         }
         
-        response = self.session.post("/api/create-logical-table", json=json_data)
+        response = self.session.post("/api/admin/create-table", json=json_data)
         if response.status_code != 200:
-            raise Exception(f"Failed to create logical table: {response.text}")
+            raise Exception(f"Failed to create table: {response.text}")
         
     def delete_table(self, table_name: str, force=False) -> None:
         """Delete a logical table from the Beacon Node.
@@ -361,7 +365,7 @@ class Client:
         if not self.session.is_admin():
             raise Exception("Deleting logical tables requires admin privileges")
         
-        response = self.session.delete("/api/delete-table", params={
+        response = self.session.delete("/api/admin/delete-table", params={
             "table_name": table_name
         })
         if response.status_code != 200:
