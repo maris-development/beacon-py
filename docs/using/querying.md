@@ -149,7 +149,7 @@ Prefer SQL? Build once in SQL, then call the same output helpers.
 sql = client.sql_query(
     """
     SELECT LONGITUDE, LATITUDE, JULD, TEMP AS temperature_c
-    FROM default
+    FROM argo
     WHERE DATA_TYPE = 'CTD'
       AND JULD BETWEEN '2024-01-01 00:00:00'
                     AND '2024-06-30 23:59:59'
