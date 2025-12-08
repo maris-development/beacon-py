@@ -26,6 +26,12 @@ class RangeFilter(Filter):
     lt_eq: Union[str, int, float, datetime, None] = None
 
 @dataclass
+class ExclusiveRangeFilter(Filter):
+    column: str
+    gt: Union[str, int, float, datetime, None] = None
+    lt: Union[str, int, float, datetime, None] = None
+
+@dataclass
 class EqualsFilter(Filter):
     column: str
     eq: Union[str, int, float, bool, datetime]
