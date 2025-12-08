@@ -33,10 +33,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install build mypy
 
-      - name: Run stubgen to generate/update stubs
-        run: |
-          stubgen -p beacon_api -o ./
-
       - name: Update version for nightly
         run: |
           DATE=$(date +'%Y%m%d')
