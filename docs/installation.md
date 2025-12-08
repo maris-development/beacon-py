@@ -1,41 +1,35 @@
 # Installation
 
-To install the `beacon_api` package, you can use pip. Run the following command in your terminal:
+Install the published wheel straight from PyPI:
 
 ```bash
-pip install beacon_api
+pip install beacon-api
 ```
 
-!!! warning "Upgrade pyarrow if using 19.0.0"
-    
-    If you are using pyarrow 19.0.0, please upgrade to at least 19.0.1 due to a known issue.
-    ```bash
-    pip install --upgrade pyarrow
-    ```
+!!! warning "Upgrade PyArrow if you are on 19.0.0"
+    PyArrow 19.0.0 shipped with a known regression in the Parquet reader. The SDK already pins `pyarrow>=17.0.0,!=19.0.0`, but if you installed PyArrow separately make sure you are on ≥19.0.1.
 
+## Requirements
 
-Make sure you have Python 3.7 or higher installed on your system. You can check your Python version by running:
+- Python 3.10 or newer
+- Internet access to reach your Beacon Node
+
+Check your Python version with:
 
 ```bash
 python --version
 ```
 
-Some features of the `beacon_api` package may require additional dependencies. You can install these optional dependencies using:
+## What gets installed?
 
-GeoPandas support:
+The default installation already brings along: `pandas`, `pyarrow`, `xarray`, `dask`, `fsspec`, `geopandas`, `zarr`, and `netCDF4`. That means features such as `to_geo_pandas_dataframe`, `to_zarr`, or `to_nd_netcdf` work out of the box—no optional extras required.
 
-```bash
-pip install beacon_api[geopandas]
-```
 
-Zarr support:
+
+## Upgrading
 
 ```bash
-pip install beacon_api[zarr]
+pip install --upgrade beacon-api
 ```
 
-Query Profiling support:
-
-```bash
-pip install beacon_api[profiling]
-```
+You can combine this with [`pipx runpip`](https://pipx.pypa.io/stable/docs/#runpip) or environment managers (Conda, uv, Rye, …) if you prefer isolation.

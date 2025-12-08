@@ -60,12 +60,14 @@ nav:
     - Using The Data Lake:
           - Exploring: using/exploring.md
           - Querying: using/querying.md
-          - Tables: using/tables.md
+          - Tables (*collections): using/tables.md
+          - Datasets: using/datasets.md
     - Examples:
           - World Ocean Database: examples/wod.md
     - API Reference:
           - Client: reference/client.md
           - Query: reference/query.md
+          - Dataset: reference/dataset.md
           - Functions: reference/functions.md
           - Table: reference/table.md
     - Changelog: changelog.md

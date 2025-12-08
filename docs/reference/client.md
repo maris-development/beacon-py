@@ -1,3 +1,3 @@
-# Client Reference
+# Client reference
 
-::: beacon_api.client
+::: beacon_api.client.Client

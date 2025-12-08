@@ -1,3 +1,3 @@
-# Table Reference
+# Table reference
 
-::: beacon_api.table
+::: beacon_api.table.DataTable
