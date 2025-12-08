@@ -118,7 +118,7 @@ class BaseQuery:
         
         # create tempfile for the netcdf file
         fd, path = tempfile.mkstemp(suffix=".nc")
-        self.to_nd_netcdf(file_path=path, dimension_columns=dimension_columns)
+        self.to_nd_netcdf(file_path=path, dimension_columns=dimension_columns,force=force)
 
         ds = xr.open_dataset(path, chunks=chunks)
         # register for cleanup the tempfile
