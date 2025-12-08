@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime
 import requests
 from typing import Optional
-from warnings import deprecated
+from deprecated import deprecated
 
 from .session import BaseBeaconSession
 from .table import DataTable
@@ -78,7 +78,7 @@ class Client:
             raise Exception(f"Failed to get server info: {response.text}")
         return response.json()
 
-    @deprecated("Use list_tables() to get available tables. From there you can find the available columns for each table. This method will be removed in future versions.")
+    @deprecated(version="1.1.0",reason="Use list_tables() to get available tables. From there you can find the available columns for each table. This method will be removed in future versions.")
     def available_columns(self) -> list[str]:
         """Return column names for the default table (deprecated)."""
         response = self.session.get("/api/query/available-columns")
@@ -87,7 +87,7 @@ class Client:
         columns = response.json()
         return columns
     
-    @deprecated("Use list_tables() to get available tables. From there you can find the available columns and their data types for each table. This method will be removed in future versions.")
+    @deprecated(version="1.1.0",reason="Use list_tables() to get available tables. From there you can find the available columns and their data types for each table. This method will be removed in future versions.")
     def available_columns_with_data_type(self) -> dict[str, type]:
         tables = self.list_tables()
         if 'default' not in tables:

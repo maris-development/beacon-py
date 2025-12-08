@@ -364,7 +364,7 @@ class JSONQuery(BaseQuery):
         Args:
             longitude_column (str): The name of the column for longitude.
             latitude_column (str): The name of the column for latitude.
-            bbox (tuple[float, float, float, float]): The bounding box coordinates (min_lon, max_lon, min_lat, max_lat).
+            bbox (tuple[float, float, float, float]): The bounding box coordinates (min_lon, min_lat, max_lon, max_lat).
 
         Returns:
             Self: The query builder instance.
