@@ -9,9 +9,9 @@ class SortColumn(QueryNode):
     
     def to_dict(self) -> dict:
         if self.ascending:
-            return { "asc": self.column }
+            return { "Asc": self.column }
         else:
-            return { "desc": self.column }
+            return { "Desc": self.column }
 
 @dataclass
 class Sort(QueryNode):

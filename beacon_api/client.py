@@ -49,8 +49,7 @@ class Client:
                 raise ValueError("Basic auth must be a tuple of (username, password)")
             proxy_headers['Authorization'] = f'{requests.auth._basic_auth_str(*basic_auth)}' # type: ignore
         
-        self.session = BaseBeaconSession(url)
-        self.session.headers.update(proxy_headers)
+        self.session = BaseBeaconSession(url, proxy_headers=proxy_headers)
         
         if self.check_status():
             raise Exception("Failed to connect to server")

@@ -2,10 +2,12 @@ import requests
 from packaging.version import Version
 
 class BaseBeaconSession(requests.Session):
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, proxy_headers: dict | None = None):
         super().__init__()
         # e.g. "https://api.example.com/"
         self.base_url = base_url.rstrip("/") + "/"
+        if proxy_headers:
+            self.headers.update(proxy_headers)
         self.beacon_node_version = self.fetch_version()
 
     def fetch_version(self) -> Version:

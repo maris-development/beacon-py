@@ -260,12 +260,17 @@ class JSONQuery(BaseQuery):
         self.filters = []
         self.sorts = []
         self.distinct = None
+        self.limit = None
+        self.offset = None
     
     def compile(self) -> dict:
         return {
             "select": [s.to_dict() for s in self.selects],
             "filters": [f.to_dict() for f in self.filters] if self.filters else None,
             "distinct": self.distinct.to_dict() if self.distinct else None,
+            "sort_by": [s.to_dict() for s in self.sorts] if self.sorts else None,
+            "limit": self.limit,
+            "offset": self.offset,
             **self._from.to_dict(),
         }
     
@@ -500,4 +505,28 @@ class JSONQuery(BaseQuery):
             Self: The query builder instance.
         """
         self.sorts.append(SortColumn(column=column, ascending=ascending))
+        return self
+    
+    def set_limit(self, limit: int) -> Self:
+        """Adds a LIMIT clause to the query.
+
+        Args:
+            limit (int): The maximum number of records to return.
+
+        Returns:
+            Self: The query builder instance.
+        """
+        self.limit = limit
+        return self
+    
+    def set_offset(self, offset: int) -> Self:
+        """Adds an OFFSET clause to the query.
+
+        Args:
+            offset (int): The number of records to skip.
+
+        Returns:
+            Self: The query builder instance.
+        """
+        self.offset = offset
         return self
