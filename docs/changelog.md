@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-01-14
+
+### Breaking changes
+
+- Query streaming now returns a `pyarrow.RecordBatchStreamReader` from `Query.execute_streaming()` instead of yielding individual `RecordBatch` objects. This allows users to manage the stream lifecycle directly and integrate with Arrow's native reading/writing utilities.
+
 ## [1.10.0] - 2025-12-07
 
 ### Breaking changes

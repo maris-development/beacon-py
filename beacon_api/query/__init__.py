@@ -90,7 +90,7 @@ class BaseQuery:
             raise Exception("Query returned no content")
         return response
     
-    def execute_streaming(self, force=False) -> Iterator[pa.RecordBatch]:
+    def execute_streaming(self, force=False) -> pa.RecordBatchStreamReader:
         """Run the query and return the response as a streaming response"""
         if not force and not self.http_session.version_at_least(1, 5, 0):
             raise Exception("Streaming queries require the Beacon Node version to be atleast 1.5.0 or higher")
@@ -101,8 +101,7 @@ class BaseQuery:
 
         stream = ipc.open_stream(response.raw)
 
-        for batch in stream:
-            yield batch
+        return stream
     
     def to_xarray_dataset(self, dimension_columns: List[str], chunks: Union[dict, None] = None, auto_cleanup=True, force=False) -> xr.Dataset:
         """Converts the query results to an xarray Dataset with n-dimensional structure.
