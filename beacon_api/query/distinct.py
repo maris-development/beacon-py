@@ -8,8 +8,6 @@ class Distinct(QueryNode):
     
     def to_dict(self) -> dict:
         return {
-            "distinct": {
-                "on": self.columns,
-                "select": self.columns
-            }
+            "on": self.columns,
+            "select": self.columns
         }
