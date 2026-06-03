@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+import re
 from typing import Optional, Union
 import pyarrow as pa
 
@@ -31,6 +32,51 @@ arrow_py_type = {
     "timestamp[us]": datetime,
     "timestamp[ns]": datetime,
 }
+
+_TIMESTAMP_UNITS = {
+    "Second": "s",
+    "Millisecond": "ms",
+    "Microsecond": "us",
+    "Nanosecond": "ns",
+}
+
+# Matches the Arrow Debug representation of a timestamp data type, e.g.
+# "Timestamp(Millisecond, None)" or "Timestamp(Second, Some(\"UTC\"))".
+_TIMESTAMP_STR_RE = re.compile(
+    r'^Timestamp\(\s*(?P<unit>\w+)\s*,\s*(?P<tz>None|Some\("(?P<tzname>[^"]*)"\))\s*\)$'
+)
+
+
+def _parse_arrow_type(field_type: Union[str, dict]) -> Optional[pa.DataType]:
+    """Convert a Beacon schema ``data_type`` into a pyarrow ``DataType``.
+
+    Handles both the dict form ``{"Timestamp": ["Millisecond", None]}`` and the
+    string form ``"Timestamp(Millisecond, None)"`` used since the 1.2.0 schema
+    change, as well as plain type aliases such as ``"int64"``. Returns ``None``
+    when the type is not recognised.
+    """
+    if isinstance(field_type, dict):
+        timestamp = field_type.get("Timestamp")
+        if isinstance(timestamp, (list, tuple)) and len(timestamp) == 2:
+            unit, tz = timestamp
+            pa_unit = _TIMESTAMP_UNITS.get(unit)
+            if pa_unit is not None:
+                return pa.timestamp(pa_unit, tz=tz)
+        return None
+
+    if isinstance(field_type, str):
+        match = _TIMESTAMP_STR_RE.match(field_type)
+        if match:
+            pa_unit = _TIMESTAMP_UNITS.get(match.group("unit"))
+            if pa_unit is not None:
+                return pa.timestamp(pa_unit, tz=match.group("tzname"))
+            return None
+        try:
+            return pa.type_for_alias(field_type.lower())
+        except ValueError:
+            return None
+
+    return None
 
 class DataTable:
     """Represents a data table available on the Beacon Node."""
@@ -71,25 +117,13 @@ class DataTable:
         
         schema_data = response.json()
         fields = []
-        
+
         for field in schema_data['fields']:
-            field_type = field['data_type']
-            
-            if isinstance(field_type, str):
-                fields.append(pa.field(field['name'], field_type))
-            
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Second", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('s')))
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Millisecond", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('ms')))
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Microsecond", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('us')))
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Nanosecond", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('ns')))
-            
-            else:
-                raise Exception(f"Unsupported data type for field {field['name']}: {field_type}")
-        
+            pa_type = _parse_arrow_type(field['data_type'])
+            if pa_type is None:
+                raise Exception(f"Unsupported data type for field {field['name']}: {field['data_type']}")
+            fields.append(pa.field(field['name'], pa_type))
+
         return pa.schema(fields)
     
     def get_table_type(self) -> Union[dict, str]:
