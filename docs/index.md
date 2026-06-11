@@ -6,7 +6,7 @@ The Beacon Python SDK is a client for Beacon Data Lakes. It discovers datasets, 
 
 - **One client for every Beacon Node** – the `Client` wires authentication headers, probes `/api/health`, and exposes helpers such as `list_tables()` and `list_datasets()`.
 - **Discoverability built-in** – `DataTable` and `Dataset` helpers return Arrow schemas, table descriptions, and file metadata so you always know which columns exist before writing a query.
-- **Chainable JSON/SQL query builders** – start from a table or dataset, add selects, filters, distinct clauses, or geospatial predicates, and export to Pandas, GeoPandas, Dask, xarray, or on-disk formats such as (Geo)Parquet, Arrow IPC, NetCDF, NdNetCDF, CSV, Zarr, or ODV.
+- **Chainable JSON/SQL query builders** – start from a table or dataset, add selects, filters, distinct clauses, or geospatial predicates, and export to Pandas, GeoPandas, xarray, a streaming PyArrow reader, or on-disk formats such as (Geo)Parquet, Arrow IPC, NetCDF, NdNetCDF, CSV, Zarr, or ODV.
 - **Typed, well-documented API surface** – the docs you are reading mirror the public classes (`Client`, `DataTable`, `Dataset`, `JSONQuery`, `SQLQuery`, …) so editors and notebooks surface the same guidance.
 
 !!! note "Beacon Data Lake platform"
@@ -14,29 +14,30 @@ The Beacon Python SDK is a client for Beacon Data Lakes. It discovers datasets, 
 
 ## Quick start
 
+The snippet below runs against the public **World Ocean Database (WOD)** node, so you can paste it straight into a notebook. Always pass a `user_agent` that identifies your application.
+
 ```python
 from beacon_api import Client
 
 client = Client(
-    "https://beacon.example.com",
-    jwt_token="<optional bearer token>",
+    "https://beacon-wod.maris.nl",
+    user_agent="my-app/1.0 (you@example.com)",
+    # jwt_token="<optional bearer token>",  # for protected nodes
 )
 
 client.check_status()  # probes /api/health and prints the Beacon version
 
 tables = client.list_tables()
-stations = tables["default"]
+wod = tables["default"]
 
 df = (
-    stations
+    wod
     .query()
-    .add_select_columns([
-        ("LONGITUDE", None),
-        ("LATITUDE", None),
-        ("JULD", None),
-        ("TEMP", "temperature_c"),
-    ])
-    .add_range_filter("JULD", "2024-01-01T00:00:00", "2024-12-31T23:59:59")
+    .add_select_column("lon", alias="longitude")
+    .add_select_column("lat", alias="latitude")
+    .add_select_column("time")
+    .add_select_column("Temperature")
+    .add_range_filter("time", "2020-01-01T00:00:00", "2020-12-31T23:59:59")
     .to_pandas_dataframe()
 )
 ```
@@ -57,7 +58,7 @@ Tables (instances of `DataTable`) represent logical collections backed by one or
 
 ### Rich outputs
 
-Every query inherits the `BaseQuery` output helpers. Stream into `to_pandas_dataframe()`, `to_geo_pandas_dataframe()`, `to_dask_dataframe()`, `to_xarray_dataset()`, or write datasets using `to_parquet()`, `to_nd_netcdf()`, `to_zarr()`, `to_odv()` and more.
+Every query inherits the `BaseQuery` output helpers. Materialize into `to_pandas_dataframe()`, `to_geo_pandas_dataframe()`, or `to_xarray_dataset()`, stream large results lazily with `execute_streaming()` (a PyArrow `RecordBatchStreamReader`), or write datasets using `to_parquet()`, `to_nd_netcdf()`, `to_zarr()`, `to_odv()` and more.
 
 ## Where to next?
 

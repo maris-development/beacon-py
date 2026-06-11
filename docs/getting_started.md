@@ -21,10 +21,13 @@ from beacon_api import Client
 
 Instantiate `Client` with the Beacon base URL and (optionally) headers for authentication. The constructor normalizes headers, sets JSON defaults, and validates connectivity by calling `/api/health`.
 
+The examples on this page use the public **World Ocean Database (WOD)** node at `https://beacon-wod.maris.nl`, so they run without authentication. Always pass a `user_agent` identifying your application (and ideally a contact address): on shared or public nodes it lets operators attribute traffic and reach you if needed.
+
 ```python
 client = Client(
-    "https://beacon.example.com",
-    # jwt_token="<optional bearer token>",
+    "https://beacon-wod.maris.nl",
+    user_agent="my-app/1.0 (you@example.com)",
+    # jwt_token="<optional bearer token>",      # for protected nodes
     # proxy_headers={"X-Forwarded-For": "<ip>"},
     # basic_auth=("user", "pass") is also supported
 )
@@ -41,8 +44,8 @@ tables = client.list_tables()
 stations = tables["stations-collection"]
 
 print(stations.get_table_description())
-schema = stations.get_table_schema()        # Arrow schema with pyarrow fields
-schema_arrow = stations.get_table_schema_arrow()
+schema = stations.get_table_schema()        # dict[str, type] -> {column: python type}
+schema_arrow = stations.get_table_schema_arrow()  # pyarrow.Schema with pyarrow fields
 ```
 
 If your Beacon Node is running v1.4.0 or later, use `list_datasets()` to enumerate file-backed resources and derive a query directly from a `Dataset`:
@@ -64,20 +67,19 @@ dataset_query = file.query()
 All table and dataset helpers return a `JSONQuery`, a fluent builder with chainable selects and filters:
 
 ```python
+tables = client.list_tables()
 
 df = (
-    tables['argo'] # Select the 'default' table as our data source
+    tables['default'] # Select the 'default' table as our data source
     .query() # Create a new query on the selected table
-    .add_select_column("LONGITUDE") # Select the LONGITUDE column
-    .add_select_column("LATITUDE") # Select the LATITUDE column
-    .add_select_column("JULD")
-    .add_select_column("PRES")
-    .add_select_column("TEMP")
-    .add_select_column("PSAL")
-    .add_select_column(".featureType") # Select the .featureType column
-    .add_select_column("DATA_TYPE")
-    .add_range_filter("JULD", "2020-01-01T00:00:00", "2021-01-01T00:00:00") # Filter for JULD between 2020 and 2021 for the column JULD
-    .add_range_filter("PRES", 0, 10) # Filter for pressure between 0 and 10 dbar for the column PRES
+    .add_select_column("lon", alias="longitude") # Select the longitude column
+    .add_select_column("lat", alias="latitude") # Select the latitude column
+    .add_select_column("z", alias="depth") # Select the depth column
+    .add_select_column("time")
+    .add_select_column("Temperature")
+    .add_select_column("Salinity")
+    .add_range_filter("time", "2020-01-01T00:00:00", "2021-01-01T00:00:00") # Filter for time between 2020 and 2021
+    .add_range_filter("z", 0, 10) # Filter for depth between 0 and 10 m
     .to_pandas_dataframe() # Execute the query and return the results as a Pandas DataFrame
 )
 df
@@ -145,7 +147,7 @@ query.to_zarr("subset.zarr")
 !!! note "Beacon compatibility"
     `to_nd_netcdf` requires Beacon Node v1.5.0 or newer.
 
-Need lazy/out-of-core execution? Use `to_dask_dataframe()` or `to_xarray_dataset()` with chunking, or call `to_dask_dataframe().head()` for quick inspection.
+Need lazy/out-of-core execution? Use `execute_streaming()` to pull results batch by batch as a PyArrow `RecordBatchStreamReader` (Beacon ≥ 1.5.0), or `to_xarray_dataset(dimension_columns, chunks=...)` for a dask-backed, chunked xarray dataset.
 
 !!! info "Profiling and explain"
     Call `query.explain()` to retrieve the Beacon execution plan, or `query.execute()` to inspect the raw HTTP response.
@@ -156,13 +158,22 @@ When you already have SQL, skip the builder and call:
 
 ```python
 sql = client.sql_query("""
-    SELECT lon, lat, juld, temperature
-    FROM <some-collection-name>
-    WHERE juld BETWEEN '2024-01-01T00:00:00' AND '2024-06-30T23:59:59'
+    SELECT lon, lat, z, time, Temperature, Salinity
+    FROM "default"
+    WHERE time BETWEEN '2020-01-01T00:00:00' AND '2020-06-30T23:59:59'
 """)
 
 df = sql.to_pandas_dataframe()
 print(df)
+```
+
+For result sets too large to buffer in memory, use `client.sql_query_streaming(...)` instead. It returns a PyArrow `RecordBatchStreamReader` you can iterate batch by batch (requires Beacon ≥ 1.5.0):
+
+```python
+reader = client.sql_query_streaming('SELECT lon, lat, z, time, Temperature FROM "default"')
+for batch in reader:
+    # batch is a pyarrow.RecordBatch
+    print(batch.num_rows)
 ```
 
 ## Next steps

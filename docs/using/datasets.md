@@ -9,7 +9,10 @@ Sometimes you already know the precise file or object store path you want to ana
 ```python
 from beacon_api import Client
 
-client = Client("https://beacon.example.com")
+client = Client(
+    "https://beacon-wod.maris.nl",
+    user_agent="my-app/1.0 (you@example.com)",
+)
 raw_datasets = client.list_datasets(pattern="**/*.parquet", limit=20)
 print(f"Discovered {len(raw_datasets)} eligible files")
 ```

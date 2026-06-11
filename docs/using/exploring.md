@@ -7,7 +7,10 @@ This guide shows how to inspect/query a Beacon Node, discover the available data
 ```python
 from beacon_api import Client
 
-client = Client("https://beacon.example.com")
+client = Client(
+    "https://beacon-wod.maris.nl",
+    user_agent="my-app/1.0 (you@example.com)",
+)
 client.check_status()  # probes /api/health and prints the version
 
 info = client.get_server_info()
@@ -37,7 +40,7 @@ for field in schema_arrow:
     print(f"{field.name}: {field.type}")
 ```
 
-Use `get_table_schema()` when you want a PyArrow `Schema` object you can re-use (for instance, to validate a DataFrame before upload).
+`get_table_schema_arrow()` returns a PyArrow `Schema` object you can re-use (for instance, to validate a DataFrame before upload). If you just want a quick `{column: python type}` mapping, call `get_table_schema()` instead.
 
 ## Sample data quickly
 

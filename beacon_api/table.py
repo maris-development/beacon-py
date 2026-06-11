@@ -33,17 +33,27 @@ arrow_py_type = {
     "timestamp[ns]": datetime,
 }
 
+# Keyed by the lower-cased unit name so both the full Arrow Debug spelling
+# ("Millisecond") and short aliases ("ms", "ns") resolve to the same unit.
 _TIMESTAMP_UNITS = {
-    "Second": "s",
-    "Millisecond": "ms",
-    "Microsecond": "us",
-    "Nanosecond": "ns",
+    "second": "s",
+    "millisecond": "ms",
+    "microsecond": "us",
+    "nanosecond": "ns",
+    "s": "s",
+    "ms": "ms",
+    "us": "us",
+    "ns": "ns",
 }
 
 # Matches the Arrow Debug representation of a timestamp data type, e.g.
-# "Timestamp(Millisecond, None)" or "Timestamp(Second, Some(\"UTC\"))".
+# "Timestamp(Millisecond, None)", "Timestamp(Second, Some(\"UTC\"))" or the
+# abbreviated "Timestamp(ns)". The timezone clause is optional and the whole
+# match is case-insensitive; the timezone name itself keeps its original case.
 _TIMESTAMP_STR_RE = re.compile(
-    r'^Timestamp\(\s*(?P<unit>\w+)\s*,\s*(?P<tz>None|Some\("(?P<tzname>[^"]*)"\))\s*\)$'
+    r'^Timestamp\(\s*(?P<unit>\w+)\s*'
+    r'(?:,\s*(?P<tz>None|Some\("(?P<tzname>[^"]*)"\)))?\s*\)$',
+    re.IGNORECASE,
 )
 
 
@@ -59,7 +69,7 @@ def _parse_arrow_type(field_type: Union[str, dict]) -> Optional[pa.DataType]:
         timestamp = field_type.get("Timestamp")
         if isinstance(timestamp, (list, tuple)) and len(timestamp) == 2:
             unit, tz = timestamp
-            pa_unit = _TIMESTAMP_UNITS.get(unit)
+            pa_unit = _TIMESTAMP_UNITS.get(str(unit).lower())
             if pa_unit is not None:
                 return pa.timestamp(pa_unit, tz=tz)
         return None
@@ -67,7 +77,7 @@ def _parse_arrow_type(field_type: Union[str, dict]) -> Optional[pa.DataType]:
     if isinstance(field_type, str):
         match = _TIMESTAMP_STR_RE.match(field_type)
         if match:
-            pa_unit = _TIMESTAMP_UNITS.get(match.group("unit"))
+            pa_unit = _TIMESTAMP_UNITS.get(match.group("unit").lower())
             if pa_unit is not None:
                 return pa.timestamp(pa_unit, tz=match.group("tzname"))
             return None

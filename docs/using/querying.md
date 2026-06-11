@@ -14,7 +14,10 @@ Start from a table (or dataset) and chain builder calls. You can add selects fir
 ```python
 from beacon_api import Client
 
-client = Client("https://beacon.example.com")
+client = Client(
+    "https://beacon-wod.maris.nl",
+    user_agent="my-app/1.0 (you@example.com)",
+)
 stations = client.list_tables()["default"]
 
 query = (
@@ -33,7 +36,6 @@ query = (
 
 ## Selecting columns and expressions
 
-- `add_select_column(column, alias=None)` – add one column at a time.
 - `add_select_column(column, alias=None)` – add one column at a time (call repeatedly to build your projection).
 - `add_select_coalesced(["col_a", "col_b"], alias="preferred")` – build a COALESCE expression server-side.
 - `add_selects([...])` – append fully-specified `Select` nodes when you need lower-level control.
@@ -96,6 +98,20 @@ query = (
 )
 ```
 
+## Pagination and limiting rows
+
+Use `set_limit(n)` to cap how many rows come back, and `set_offset(n)` to skip rows — together they page through a large result set:
+
+```python
+# First 1,000 rows
+page_one = query.set_limit(1000).set_offset(0)
+
+# Next 1,000 rows
+page_two = query.set_limit(1000).set_offset(1000)
+```
+
+`set_limit` on its own is also a quick way to preview a query before materializing the full result.
+
 ## Inspect the plan
 
 Call `query.explain()` to inspect the Beacon execution plan before spending time/materializing the results. For ad-hoc debugging you can also call `query.execute()` to get the raw `requests.Response` object and inspect headers or bytes.
@@ -108,7 +124,7 @@ Every builder inherits from `BaseQuery`, so all outputs are available regardless
 | --- | --- |
 | `to_pandas_dataframe()` | Executes the query and returns a Pandas `DataFrame`. |
 | `to_geo_pandas_dataframe(lon_col, lat_col, crs="EPSG:4326")` | Builds a `GeoDataFrame` and sets the CRS for you. |
-| `to_dask_dataframe(temp_name="temp.parquet")` | Streams results into an in-memory Parquet file and returns a lazy `dask.dataframe`. |
+| `execute_streaming()` | Returns a PyArrow `RecordBatchStreamReader` so you can consume large results batch by batch (requires Beacon ≥ 1.5.0). |
 | `to_xarray_dataset(dimension_columns, chunks=None)` | Converts the results into an xarray `Dataset`; handy for multidimensional grids. |
 | `to_parquet(path)` / `to_geoparquet(path, lon, lat)` / `to_arrow(path)` / `to_csv(path)` | Writes the streamed response directly to disk in the requested format. |
 | `to_netcdf(path)` | Builds a local NetCDF file via Pandas → xarray. |
@@ -118,15 +134,15 @@ Every builder inherits from `BaseQuery`, so all outputs are available regardless
 
 ## Example gallery
 
-### Dataset-powered Dask pipelines
+### Streaming large results
 
-When you already know the file/URI you want, start from `Dataset` helpers and stream lazily with Dask.
+When a result set is too large to buffer in memory, call `execute_streaming()` instead of a `to_*` helper. It returns a PyArrow `RecordBatchStreamReader` (requires Beacon ≥ 1.5.0) that you can iterate batch by batch — works the same whether you start from a table or a `Dataset`.
 
 ```python
 datasets = client.list_datasets(pattern="**/*.parquet", limit=1)
 dataset = next(iter(datasets.values()))
 
-dask_query = (
+reader = (
     dataset
     .query()
     .add_select_column("lon", alias="longitude")
@@ -134,12 +150,18 @@ dask_query = (
     .add_select_column("time")
     .add_select_column("temperature")
     .add_range_filter("time", "2023-01-01T00:00:00", "2023-12-31T23:59:59")
+    .execute_streaming()
 )
 
-dask_df = dask_query.to_dask_dataframe()
+for batch in reader:
+    # batch is a pyarrow.RecordBatch — process it without loading everything at once
+    print(batch.num_rows)
 
-print(dask_df.head())
+# ...or collect everything into one Arrow Table / DataFrame
+# table = reader.read_all(); df = table.to_pandas()
 ```
+
+The same stream is available straight from SQL via `client.sql_query_streaming("SELECT ...")`.
 
 ### SQL equivalent
 

@@ -9,6 +9,7 @@ SDK documentation style so IDEs surface helpful call hints.
 from __future__ import annotations
 import datetime
 import requests
+import pyarrow as pa
 from typing import Optional
 from deprecated import deprecated
 
@@ -23,7 +24,7 @@ class Client:
     discovering tables/datasets before building JSON or SQL queries.
     """
 
-    def __init__(self, url: str, proxy_headers: dict[str,str] | None = None, jwt_token: str | None = None, basic_auth: tuple[str, str] | None = None):
+    def __init__(self, url: str, proxy_headers: dict[str,str] | None = None, jwt_token: str | None = None, basic_auth: tuple[str, str] | None = None, user_agent: str | None = None):
         """Create a Beacon API client.
 
         Args:
@@ -31,6 +32,9 @@ class Client:
             proxy_headers: Optional custom headers added to every request.
             jwt_token: Optional bearer token used for ``Authorization`` header.
             basic_auth: Optional ``(username, password)`` tuple for HTTP basic auth.
+            user_agent: Optional ``User-Agent`` header identifying your application.
+                Recommended on shared/public nodes so requests can be attributed,
+                e.g. ``"my-app/1.0 (you@example.com)"``.
 
         Raises:
             ValueError: If ``basic_auth`` is not a 2-item tuple.
@@ -43,7 +47,8 @@ class Client:
         proxy_headers['Accept'] = 'application/json'
         if jwt_token:
             proxy_headers['Authorization'] = f'Bearer {jwt_token}'
-            
+        if user_agent:
+            proxy_headers['User-Agent'] = user_agent
         if basic_auth:
             if not isinstance(basic_auth, tuple) or len(basic_auth) != 2:
                 raise ValueError("Basic auth must be a tuple of (username, password)")
@@ -159,9 +164,50 @@ class Client:
             sql: Raw SQL string sent to the Beacon Node.
 
         Returns:
-            SQLQuery: Builder that exposes ``to_dataframe``, ``to_csv`` etc.
+            SQLQuery: Query object exposing the shared output helpers such as
+            ``to_pandas_dataframe``, ``to_parquet``, and ``to_csv``.
         """
         return SQLQuery(http_session=self.session, query=sql)
+    
+    def sql_query_streaming(self, sql: str) -> pa.RecordBatchStreamReader:
+        """Execute raw SQL and stream the results as Arrow record batches.
+
+        Unlike :meth:`sql_query`, this runs the query immediately and returns a
+        PyArrow stream reader instead of a builder. Rows are pulled from the
+        Beacon Node lazily, batch by batch, so large result sets can be
+        processed without loading everything into memory at once.
+
+        Args:
+            sql: Raw SQL string sent to the Beacon Node.
+
+        Returns:
+            pa.RecordBatchStreamReader: Reader yielding the results as Arrow
+            record batches. Iterate over it, call ``read_next_batch()``, or
+            materialize everything with ``read_all()``.
+
+        Raises:
+            Exception: If the Beacon Node version is below 1.5.0, or the HTTP
+                call fails.
+
+        Example:
+            Iterate over batches without buffering the full result:
+
+            ```python
+            reader = client.sql_query_streaming("SELECT * FROM my_table")
+            for batch in reader:
+                # batch is a pyarrow.RecordBatch
+                print(batch.num_rows)
+            ```
+
+            Or collect everything into a single Arrow Table / DataFrame:
+
+            ```python
+            reader = client.sql_query_streaming("SELECT * FROM my_table")
+            table = reader.read_all()
+            df = table.to_pandas()
+            ```
+        """
+        return SQLQuery(http_session=self.session, query=sql).execute_streaming()
 
     @deprecated("To query, use list_tables() or list_datasets() as a base to create a new query object. This method will be removed in future versions.")
     def query(self) -> JSONQuery:
