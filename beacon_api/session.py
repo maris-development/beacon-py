@@ -2,10 +2,16 @@ import requests
 from packaging.version import Version
 
 class BaseBeaconSession(requests.Session):
-    def __init__(self, base_url: str, proxy_headers: dict | None = None):
+    def __init__(self, base_url: str, proxy_headers: dict | None = None, backend: str = "rest"):
         super().__init__()
         # e.g. "https://api.example.com/"
         self.base_url = base_url.rstrip("/") + "/"
+        if backend not in ("rest", "sql"):
+            raise ValueError(f"Unknown backend '{backend}'. Expected 'rest' or 'sql'.")
+        # Selects how discovery (list_tables/list_datasets/schemas) is resolved:
+        # "rest" uses the /api/* endpoints, "sql" uses SHOW TABLES / DESCRIBE /
+        # the list_datasets() table function.
+        self.backend = backend
         if proxy_headers:
             self.headers.update(proxy_headers)
         self.beacon_node_version = self.fetch_version()

@@ -46,7 +46,7 @@ df = (
 
 ### Client
 
-Manages the HTTP session, authentication headers, and compatibility checks. Use `get_server_info()` to inspect the Beacon version and extensions, `list_tables()` to enumerate logical collections, or `list_datasets()` (Beacon ≥ 1.4.0) to work with direct file paths.
+Manages the HTTP session, authentication headers, and compatibility checks. Use `get_server_info()` to inspect the Beacon version and extensions, `list_tables()` to enumerate logical collections, or `list_datasets()` (Beacon ≥ 1.4.0) to work with direct file paths. Pass `backend="sql"` (Beacon ≥ 1.7.0) to resolve discovery through SQL (`SHOW TABLES`, `DESCRIBE`, `list_datasets()`) instead of the REST `/api/*` endpoints; `describe_table()` returns a `pyarrow.Schema`.
 
 ### Tables and datasets
 
@@ -58,7 +58,7 @@ Tables (instances of `DataTable`) represent logical collections backed by one or
 
 ### Rich outputs
 
-Every query inherits the `BaseQuery` output helpers. Materialize into `to_pandas_dataframe()`, `to_geo_pandas_dataframe()`, or `to_xarray_dataset()`, stream large results lazily with `execute_streaming()` (a PyArrow `RecordBatchStreamReader`), or write datasets using `to_parquet()`, `to_nd_netcdf()`, `to_zarr()`, `to_odv()` and more.
+Every query inherits the `BaseQuery` output helpers. Materialize into `to_pandas_dataframe()` (which streams and collects Arrow batches), `to_arrow_table()`, `to_geo_pandas_dataframe()`, or `to_xarray_dataset()`, stream large results lazily with `to_arrow_stream()` (a PyArrow `RecordBatchStreamReader`), or write datasets using `to_parquet()`, `to_nd_netcdf()`, `to_zarr()`, `to_odv()` and more. SQL DDL/DML statements only support the Arrow-based outputs.
 
 ## Where to next?
 

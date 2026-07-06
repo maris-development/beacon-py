@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-06-17
+
+### Added
+
+- **SQL discovery backend.** `Client(url, backend="sql")` resolves discovery
+  through SQL (Beacon ≥ 1.7.0): `list_tables()` runs `SHOW TABLES`,
+  `list_datasets()` uses the `list_datasets()` table function, and table/dataset
+  schemas come from `DESCRIBE`/`read_schema(...)`. The default remains
+  `backend="rest"` for backward compatibility, and both backends return the same
+  rich `DataTable`/`Dataset` helpers.
+- **`Client.describe_table(name)`** returns a table's schema as a `pyarrow.Schema`
+  via `DESCRIBE <table>`.
+- **Arrow outputs.** `BaseQuery.to_arrow_table()` collects all streamed batches
+  into a single `pyarrow.Table`, and `to_arrow_stream()` exposes the
+  `RecordBatchStreamReader` (an alias of `execute_streaming()`). These, together
+  with `to_pandas_dataframe()`, are the only outputs supported for SQL DDL/DML
+  statements (`CREATE TABLE`, `INSERT`, `UPDATE`, `DELETE`, …).
+
+### Changed
+
+- `to_pandas_dataframe()` now streams the result as Arrow record batches and
+  collects them into one Arrow table before converting to pandas, instead of
+  fetching and parsing a Parquet blob. This requires Beacon ≥ 1.5.0.
+
+### Deprecated
+
+- `Client.create_logical_table()` and `Client.delete_table()` are deprecated in
+  favor of SQL DDL (`client.sql_query("CREATE TABLE ...")` /
+  `client.sql_query("DROP TABLE ...")`).
+
 ## [1.2.0] - 2026-01-14
 
 ### Breaking changes

@@ -34,6 +34,15 @@ schema_dict = stations.get_table_schema()
 
 The schema result is a PyArrow `Schema`, meaning you can introspect field metadata, dtypes, or reuse it when constructing downstream DataFrames.
 
+!!! note "SQL backend"
+    When the client is created with `backend="sql"`, `get_table_schema_arrow()`
+    resolves the schema via `DESCRIBE <table>` instead of `/api/table-schema`,
+    and `list_tables()` is backed by `SHOW TABLES`. You can also call
+    `client.describe_table("stations-collection")` to get the same
+    `pyarrow.Schema` without first fetching a `DataTable`. Note that the table
+    type/description metadata from `/api/table-config` is unavailable on the SQL
+    backend.
+
 ## Create a query from a table
 
 Once you know which columns you need, call `stations.query()` to obtain a `JSONQuery` builder:

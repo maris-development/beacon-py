@@ -24,10 +24,40 @@ client = Client(
     user_agent="my-app/1.0 (you@example.com)",
     # jwt_token="<bearer token>",        # for protected nodes
     # basic_auth=("user", "pass"),        # or HTTP basic auth
+    # backend="sql",                       # SQL-first discovery (default: "rest")
 )
 
 client.check_status()  # probes /api/health and prints the Beacon version
 ```
+
+### SQL backend (Beacon ≥ 1.7.0)
+
+By default the client discovers tables and datasets through the REST `/api/*`
+endpoints. Pass `backend="sql"` to resolve everything through SQL instead —
+`list_tables()` runs `SHOW TABLES`, `describe_table()` runs `DESCRIBE <table>`,
+and `list_datasets()` uses the `list_datasets()` table function. The returned
+objects are the same rich `DataTable`/`Dataset` helpers, so the query builder
+keeps working.
+
+```python
+client = Client("https://beacon-wod.maris.nl", backend="sql")
+
+tables = client.list_tables()          # SHOW TABLES
+schema = client.describe_table("default")  # DESCRIBE default -> pyarrow.Schema
+datasets = client.list_datasets()      # SELECT * FROM list_datasets()
+```
+
+Tables are managed through SQL DDL — create and drop them with `sql_query`:
+
+```python
+client.sql_query("CREATE TABLE IF NOT EXISTS measurements (id BIGINT, value DOUBLE)").to_arrow_table()
+client.sql_query("DROP TABLE measurements").to_arrow_table()
+```
+
+> **DDL/DML and output formats:** statements such as `CREATE TABLE`, `INSERT`,
+> `UPDATE`, and `DELETE` do **not** support custom output formats (Parquet, CSV,
+> ODV, NetCDF, …). They only work with the Arrow-based outputs
+> `to_pandas_dataframe()`, `to_arrow_table()`, and `to_arrow_stream()`.
 
 ## Getting started: SQL
 
@@ -43,6 +73,17 @@ df = client.sql_query(
 ).to_pandas_dataframe()
 
 print(df.head())
+```
+
+`to_pandas_dataframe()` streams the result as Arrow IPC record batches,
+collects them into a single Arrow table, and converts that to pandas (requires
+Beacon ≥ 1.5.0). You can also stop at Arrow directly:
+
+```python
+query = client.sql_query('SELECT lon, lat, time, Temperature FROM "default" LIMIT 1000')
+
+table = query.to_arrow_table()    # pyarrow.Table (all batches collected)
+reader = query.to_arrow_stream()  # pyarrow.RecordBatchStreamReader (batch by batch)
 ```
 
 ## Getting started: JSON query builder

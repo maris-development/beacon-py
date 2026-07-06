@@ -3,9 +3,10 @@ import datetime
 import re
 from typing import Optional, Union
 import pyarrow as pa
+from packaging.version import Version
 
 from .session import BaseBeaconSession
-from .query import JSONQuery, RangeFilter, AndFilter
+from .query import JSONQuery, SQLQuery, RangeFilter, AndFilter
 from .query._from import FromTable
 
 arrow_py_type = {
@@ -88,6 +89,51 @@ def _parse_arrow_type(field_type: Union[str, dict]) -> Optional[pa.DataType]:
 
     return None
 
+
+def _schema_from_rows(names: list, types: list) -> pa.Schema:
+    """Build a ``pa.Schema`` from parallel column-name / data-type lists.
+
+    Shared by the SQL ``DESCRIBE <table>`` and ``read_schema(...)`` paths, both
+    of which return a column of names and a column of Arrow type spellings.
+    """
+    fields = []
+    for name, data_type in zip(names, types):
+        pa_type = _parse_arrow_type(data_type)
+        if pa_type is None:
+            raise Exception(f"Unsupported data type for field {name}: {data_type}")
+        fields.append(pa.field(str(name), pa_type))
+    return pa.schema(fields)
+
+
+def _schema_from_arrow_result(result: pa.Table) -> pa.Schema:
+    """Parse a name/type result table (DESCRIBE or read_schema) into a schema."""
+    columns = result.column_names
+    name_col = "column_name" if "column_name" in columns else columns[0]
+    type_col = "data_type" if "data_type" in columns else columns[1]
+    return _schema_from_rows(
+        result.column(name_col).to_pylist(),
+        result.column(type_col).to_pylist(),
+    )
+
+
+def schema_from_describe(http_session: BaseBeaconSession, table_name: str) -> pa.Schema:
+    """Resolve a table schema via SQL ``DESCRIBE <table>``.
+
+    Returns the table's columns as a :class:`pyarrow.Schema`. The DESCRIBE result
+    exposes ``column_name`` and ``data_type`` columns which are parsed into Arrow
+    types via :func:`_parse_arrow_type`.
+    """
+    result = SQLQuery(http_session=http_session, query=f"DESCRIBE {table_name}").to_arrow_table()
+    return _schema_from_arrow_result(result)
+
+
+def schema_from_read_schema(http_session: BaseBeaconSession, file_path: str, file_format: str) -> pa.Schema:
+    """Resolve a dataset schema via the SQL ``read_schema(paths, format)`` table function."""
+    sql = f"SELECT * FROM read_schema(['{file_path}'], '{file_format}')"
+    result = SQLQuery(http_session=http_session, query=sql).to_arrow_table()
+    return _schema_from_arrow_result(result)
+
+
 class DataTable:
     """Represents a data table available on the Beacon Node."""
     
@@ -95,15 +141,28 @@ class DataTable:
     def __init__(self, http_session: BaseBeaconSession, table_name: str):
         self.http_session = http_session
         self.table_name = table_name
-        
+
+        # The /api/table-config endpoint only exists on the REST backend. Under
+        # the SQL backend there is no equivalent for the table type/description,
+        # so we leave them unset and rely on DESCRIBE for the schema.
+        if getattr(self.http_session, "backend", "rest") == "sql":
+            self.table_type = "unknown"
+            self.description = None
+            return
+
         # Now query the server for the table type and description
         # api/table-config?table_name={table_name}
-        response = self.http_session.get("/api/table-config", params={"table_name": table_name})
-        if response.status_code != 200:
-            raise Exception(f"Failed to get table config: {response.text}")
-        table_config = response.json()
-        self.table_type = table_config.get("table_type", "unknown")
-        self.description = table_config.get("description", None)
+        
+        if http_session.beacon_node_version < Version("1.7.0"):
+            response = self.http_session.get("/api/table-config", params={"table_name": table_name})
+            if response.status_code != 200:
+                raise Exception(f"Failed to get table config: {response.text}")
+            table_config = response.json()
+            self.table_type = table_config.get("table_type", "unknown")
+            self.description = table_config.get("description", None)
+        else:
+            self.table_type = "unknown"
+            self.description = None
 
     def get_table_description(self) -> str:
         """Get the description of the table"""
@@ -120,8 +179,12 @@ class DataTable:
 
     def get_table_schema_arrow(self) -> pa.Schema:
         """Get the schema of the table in Arrow format"""
+        # SQL backend: resolve the schema via DESCRIBE <table>.
+        if getattr(self.http_session, "backend", "rest") == "sql":
+            return schema_from_describe(self.http_session, self.table_name)
+
         response = self.http_session.get("/api/table-schema", params={"table_name": self.table_name})
-        
+
         if response.status_code != 200:
             raise Exception(f"Failed to get table schema: {response.text}")
         

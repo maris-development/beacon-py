@@ -122,15 +122,43 @@ Every builder inherits from `BaseQuery`, so all outputs are available regardless
 
 | Method | Description |
 | --- | --- |
-| `to_pandas_dataframe()` | Executes the query and returns a Pandas `DataFrame`. |
+| `to_pandas_dataframe()` | Streams the result as Arrow record batches, collects them into one Arrow table, and converts to a Pandas `DataFrame` (requires Beacon ≥ 1.5.0). |
+| `to_arrow_table()` | Streams and collects every batch into a single PyArrow `Table`. |
+| `to_arrow_stream()` | Returns a PyArrow `RecordBatchStreamReader` so you can consume large results batch by batch (requires Beacon ≥ 1.5.0). |
 | `to_geo_pandas_dataframe(lon_col, lat_col, crs="EPSG:4326")` | Builds a `GeoDataFrame` and sets the CRS for you. |
-| `execute_streaming()` | Returns a PyArrow `RecordBatchStreamReader` so you can consume large results batch by batch (requires Beacon ≥ 1.5.0). |
+| `execute_streaming()` | Lower-level alias of `to_arrow_stream()`. |
 | `to_xarray_dataset(dimension_columns, chunks=None)` | Converts the results into an xarray `Dataset`; handy for multidimensional grids. |
 | `to_parquet(path)` / `to_geoparquet(path, lon, lat)` / `to_arrow(path)` / `to_csv(path)` | Writes the streamed response directly to disk in the requested format. |
 | `to_netcdf(path)` | Builds a local NetCDF file via Pandas → xarray. |
 | `to_nd_netcdf(path, dimension_columns)` | Requests the Beacon server to emit NdNetCDF directly (requires Beacon ≥ 1.5.0). |
 | `to_zarr(path)` | Converts the results to xarray and persists them as a Zarr store. |
 | `to_odv(Odv(...), path)` | Emits an Ocean Data View export when the server supports it. |
+
+!!! warning "DDL/DML statements only support Arrow outputs"
+    SQL statements that change the catalog or data — `CREATE TABLE`, `INSERT`,
+    `UPDATE`, `DELETE`, `DROP TABLE`, … — do **not** support the custom file
+    output formats. Only `to_pandas_dataframe()`, `to_arrow_table()`, and
+    `to_arrow_stream()` work for them; calling `to_parquet()`, `to_csv()`,
+    `to_odv()` and friends on a DDL/DML statement will fail.
+
+## Managing tables with SQL
+
+On Beacon ≥ 1.7.0 tables are created and dropped through SQL DDL rather than the
+deprecated REST admin helpers. Run the statement through `sql_query` and collect
+it with one of the Arrow outputs:
+
+```python
+client.sql_query(
+    "CREATE TABLE IF NOT EXISTS measurements (id BIGINT, name VARCHAR, value DOUBLE)"
+).to_arrow_table()
+
+# Populate from a query
+client.sql_query(
+    "INSERT INTO measurements SELECT id, name, value FROM staging"
+).to_arrow_table()
+
+client.sql_query("DROP TABLE measurements").to_arrow_table()
+```
 
 ## Example gallery
 

@@ -49,7 +49,7 @@ class BaseQuery:
     def compile(self) -> dict:
         ...
     
-    def set_output(self, output_format: Output) -> None:
+    def set_output(self, output_format: Output | None) -> None:
         """Set the output format for the query"""
         self.output_format = output_format
     
@@ -91,10 +91,20 @@ class BaseQuery:
         return response
     
     def execute_streaming(self, force=False) -> pa.RecordBatchStreamReader:
-        """Run the query and return the response as a streaming response"""
+        """Run the query and return the response as a streaming response.
+
+        No output format is set, so the Beacon Node streams its default Arrow
+        IPC record batches, which are parsed lazily by :func:`pyarrow.ipc.open_stream`.
+        Any output format previously set via a ``to_*`` helper is cleared so it
+        does not leak into the streamed request.
+        """
         if not force and not self.http_session.version_at_least(1, 5, 0):
             raise Exception("Streaming queries require the Beacon Node version to be atleast 1.5.0 or higher")
-        
+
+        # Clear any previously-set file output format (e.g. from a prior
+        # to_parquet()/to_csv() call) so the node streams Arrow IPC batches.
+        self.set_output(None)
+
         query_body = self.compile_query()
         print(f"Running query: {query_body}")
         response = self.http_session.post("/api/query", data=query_body, stream=True)
@@ -102,6 +112,42 @@ class BaseQuery:
         stream = ipc.open_stream(response.raw)
 
         return stream
+
+    def to_arrow_stream(self, force=False) -> pa.RecordBatchStreamReader:
+        """Execute the query and return a PyArrow ``RecordBatchStreamReader``.
+
+        Results are streamed as Arrow IPC record batches and pulled lazily, so
+        large result sets can be processed batch by batch without buffering
+        everything in memory. Iterate over the reader, call ``read_next_batch()``,
+        or materialize everything with ``read_all()``.
+
+        This is the recommended output for SQL DDL/DML statements (``CREATE TABLE``,
+        ``INSERT``, ``DELETE`` …), which only support the Arrow-based outputs
+        (:meth:`to_arrow_stream`, :meth:`to_arrow_table`, :meth:`to_pandas_dataframe`)
+        and not custom file formats such as Parquet or CSV.
+
+        Args:
+            force: Skip the Beacon ``>= 1.5.0`` version check.
+
+        Returns:
+            pa.RecordBatchStreamReader: Reader yielding the results as Arrow record batches.
+        """
+        return self.execute_streaming(force=force)
+
+    def to_arrow_table(self, force=False) -> pa.Table:
+        """Execute the query and collect all streamed batches into a PyArrow ``Table``.
+
+        Streams the Arrow IPC record batches and concatenates them into a single
+        in-memory :class:`pyarrow.Table`. Like :meth:`to_arrow_stream`, this is one
+        of the few outputs supported for SQL DDL/DML statements.
+
+        Args:
+            force: Skip the Beacon ``>= 1.5.0`` version check.
+
+        Returns:
+            pa.Table: The full query result as an Arrow table.
+        """
+        return self.to_arrow_stream(force=force).read_all()
     
     def to_xarray_dataset(self, dimension_columns: List[str], chunks: Union[dict, None] = None, auto_cleanup=True, force=False) -> xr.Dataset:
         """Converts the query results to an xarray Dataset with n-dimensional structure.
@@ -126,12 +172,22 @@ class BaseQuery:
         
         return ds
 
-    def to_pandas_dataframe(self) -> pd.DataFrame:
-        """Execute the query and return the results as a pandas DataFrame"""
-        self.set_output(Parquet())
-        response = self.execute()
-        bytes_io = BytesIO(response.content)
-        return pd.read_parquet(bytes_io)
+    def to_pandas_dataframe(self, force=False) -> pd.DataFrame:
+        """Execute the query and return the results as a pandas DataFrame.
+
+        Streams the result as Arrow IPC record batches, collects them into a
+        single Arrow table, and converts that table to pandas. This avoids the
+        previous Parquet round-trip and requires the Beacon Node version to be
+        at least 1.5.0 (the streaming threshold).
+
+        This output is also supported for SQL DDL/DML statements, which only
+        work with the Arrow-based outputs (:meth:`to_pandas_dataframe`,
+        :meth:`to_arrow_table`, :meth:`to_arrow_stream`).
+
+        Args:
+            force: Skip the Beacon ``>= 1.5.0`` version check.
+        """
+        return self.to_arrow_table(force=force).to_pandas()
     
     def to_geo_pandas_dataframe(self, longitude_column: str, latitude_column: str, crs: str = "EPSG:4326") -> gpd.GeoDataFrame:
         """Converts the query results to a GeoPandas GeoDataFrame.

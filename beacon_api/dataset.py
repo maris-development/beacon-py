@@ -13,6 +13,7 @@ import os
 from typing import Any, Callable, Dict, Generic, Literal, Sequence, TypeVar, overload
 
 from .session import BaseBeaconSession
+from .table import schema_from_read_schema
 from .query import (
     JSONQuery,
     From,
@@ -91,6 +92,10 @@ class Dataset(Generic[_FormatT]):
                 decoded value is not a JSON object.
             Exception: For unsupported field types surfaced by Beacon.
         """
+
+        # SQL backend: resolve the schema via the read_schema(...) table function.
+        if getattr(self.session, "backend", "rest") == "sql":
+            return schema_from_read_schema(self.session, self.file_path, self.file_format)
 
         response = self.session.get("/api/dataset-schema", params={"file": self.file_path})
         if response.status_code != 200:

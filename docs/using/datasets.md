@@ -19,6 +19,13 @@ print(f"Discovered {len(raw_datasets)} eligible files")
 
 Each value in the dictionary is a `Dataset` instance.
 
+!!! note "SQL backend"
+    When the client is created with `backend="sql"`, `list_datasets()` queries the
+    `list_datasets()` SQL table function (`SELECT * FROM list_datasets()`) instead
+    of `/api/list-datasets`. `limit`/`offset` are pushed into the SQL statement and
+    the `pattern` glob is applied client-side. The returned values are still
+    `Dataset` instances.
+
 ```python
 first = next(iter(raw_datasets.values()))
 print(first.get_file_format(), first.get_file_name())
@@ -34,6 +41,9 @@ schema = first.get_schema()
 for field in schema:
     print(field.name, field.type)
 ```
+
+On the `sql` backend this is resolved via the `read_schema([...], '<format>')`
+table function instead of `/api/dataset-schema`.
 
 Use this information to decide which columns to select before running a heavy query.
 

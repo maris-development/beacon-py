@@ -35,6 +35,12 @@ client = Client(
 
 Use `client.check_status()` to verify connectivity and print the Beacon version, or `client.get_server_info()` to inspect the metadata returned by `/api/info`.
 
+!!! tip "SQL discovery backend (Beacon ≥ 1.7.0)"
+    Pass `backend="sql"` to resolve discovery through SQL (`SHOW TABLES`,
+    `DESCRIBE`, `list_datasets()`) instead of the REST `/api/*` endpoints. The
+    default is `backend="rest"`. Either way, `list_tables()`/`list_datasets()`
+    return the same rich helpers.
+
 ## 3. Discover tables and datasets
 
 `list_tables()` returns a mapping of table names to `DataTable` helpers that already know their description and type.
@@ -147,7 +153,16 @@ query.to_zarr("subset.zarr")
 !!! note "Beacon compatibility"
     `to_nd_netcdf` requires Beacon Node v1.5.0 or newer.
 
-Need lazy/out-of-core execution? Use `execute_streaming()` to pull results batch by batch as a PyArrow `RecordBatchStreamReader` (Beacon ≥ 1.5.0), or `to_xarray_dataset(dimension_columns, chunks=...)` for a dask-backed, chunked xarray dataset.
+`to_pandas_dataframe()` streams the result as Arrow record batches and collects
+them into a single table before converting to pandas (Beacon ≥ 1.5.0). To stop
+at Arrow, use `query.to_arrow_table()` (a `pyarrow.Table`) or
+`query.to_arrow_stream()` (a `pyarrow.RecordBatchStreamReader` for batch-by-batch
+processing).
+
+Need lazy/out-of-core execution? Use `to_arrow_stream()` (alias `execute_streaming()`)
+to pull results batch by batch as a PyArrow `RecordBatchStreamReader` (Beacon ≥
+1.5.0), or `to_xarray_dataset(dimension_columns, chunks=...)` for a dask-backed,
+chunked xarray dataset.
 
 !!! info "Profiling and explain"
     Call `query.explain()` to retrieve the Beacon execution plan, or `query.execute()` to inspect the raw HTTP response.
@@ -166,6 +181,19 @@ sql = client.sql_query("""
 df = sql.to_pandas_dataframe()
 print(df)
 ```
+
+On Beacon ≥ 1.7.0, tables are managed through SQL DDL. Run `CREATE TABLE` /
+`DROP TABLE` (and DML such as `INSERT`/`UPDATE`/`DELETE`) through `sql_query` and
+collect with an Arrow output:
+
+```python
+client.sql_query("CREATE TABLE IF NOT EXISTS t (id BIGINT, value DOUBLE)").to_arrow_table()
+```
+
+!!! warning "DDL/DML output formats"
+    DDL/DML statements do **not** support custom output formats. Only
+    `to_pandas_dataframe()`, `to_arrow_table()`, and `to_arrow_stream()` work for
+    them — `to_parquet()`, `to_csv()`, and the other file exports will fail.
 
 For result sets too large to buffer in memory, use `client.sql_query_streaming(...)` instead. It returns a PyArrow `RecordBatchStreamReader` you can iterate batch by batch (requires Beacon ≥ 1.5.0):
 

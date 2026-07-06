@@ -1,5 +1,6 @@
 from .query import From as From, FromArrowDataset as FromArrowDataset, FromBBFDataset as FromBBFDataset, FromCSVDataset as FromCSVDataset, FromNetCDFDataset as FromNetCDFDataset, FromParquetDataset as FromParquetDataset, FromZarrDataset as FromZarrDataset, JSONQuery as JSONQuery
 from .session import BaseBeaconSession as BaseBeaconSession
+from .table import schema_from_read_schema as schema_from_read_schema
 from _typeshed import Incomplete
 from typing import Any, Callable, Generic, Sequence, overload
 

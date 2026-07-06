@@ -20,6 +20,25 @@ print(info["beacon_version"], info.get("extensions"))
 !!! tip "Troubleshooting connectivity"
     The client automatically prefixes relative URLs with the base URL. If you see `Failed to connect to server`, double-check the base URL and whether your token grants access to `/api/health`.
 
+## Choose a discovery backend (Beacon ≥ 1.7.0)
+
+By default the client discovers tables, datasets, and schemas through the REST
+`/api/*` endpoints. Pass `backend="sql"` to resolve them through SQL instead:
+
+```python
+client = Client("https://beacon-wod.maris.nl", backend="sql")
+```
+
+With the SQL backend:
+
+- `list_tables()` runs `SHOW TABLES`.
+- `client.describe_table("default")` runs `DESCRIBE default` and returns a `pyarrow.Schema`.
+- `list_datasets()` queries the `list_datasets()` table function.
+
+Everything below works the same regardless of the backend — only how the
+metadata is fetched differs. The returned objects are always the rich
+`DataTable`/`Dataset` helpers.
+
 ## Discover tables
 
 `list_tables()` returns a mapping of table names to `DataTable` helpers with cached metadata. Iterate to learn what each collection represents:
@@ -41,6 +60,15 @@ for field in schema_arrow:
 ```
 
 `get_table_schema_arrow()` returns a PyArrow `Schema` object you can re-use (for instance, to validate a DataFrame before upload). If you just want a quick `{column: python type}` mapping, call `get_table_schema()` instead.
+
+You can also describe a table by name straight from the client — handy when you
+already know the table name and don't need the full `DataTable` helper:
+
+```python
+schema = client.describe_table("default")  # DESCRIBE default
+for field in schema:
+    print(f"{field.name}: {field.type}")
+```
 
 ## Sample data quickly
 

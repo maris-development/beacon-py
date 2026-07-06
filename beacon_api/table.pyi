@@ -1,11 +1,14 @@
 import datetime
 import pyarrow as pa
-from .query import AndFilter as AndFilter, JSONQuery as JSONQuery, RangeFilter as RangeFilter
+from .query import AndFilter as AndFilter, JSONQuery as JSONQuery, RangeFilter as RangeFilter, SQLQuery as SQLQuery
 from .query._from import FromTable as FromTable
 from .session import BaseBeaconSession as BaseBeaconSession
 from _typeshed import Incomplete
 
 arrow_py_type: Incomplete
+
+def schema_from_describe(http_session: BaseBeaconSession, table_name: str) -> pa.Schema: ...
+def schema_from_read_schema(http_session: BaseBeaconSession, file_path: str, file_format: str) -> pa.Schema: ...
 
 class DataTable:
     http_session: Incomplete

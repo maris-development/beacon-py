@@ -8,13 +8,14 @@ SDK documentation style so IDEs surface helpful call hints.
 
 from __future__ import annotations
 import datetime
+import fnmatch
 import requests
 import pyarrow as pa
-from typing import Optional
+from typing import Literal, Optional
 from deprecated import deprecated
 
 from .session import BaseBeaconSession
-from .table import DataTable
+from .table import DataTable, schema_from_describe
 from .dataset import Dataset
 from .query import JSONQuery, SQLQuery, FromTable
 
@@ -24,7 +25,7 @@ class Client:
     discovering tables/datasets before building JSON or SQL queries.
     """
 
-    def __init__(self, url: str, proxy_headers: dict[str,str] | None = None, jwt_token: str | None = None, basic_auth: tuple[str, str] | None = None, user_agent: str | None = None):
+    def __init__(self, url: str, proxy_headers: dict[str,str] | None = None, jwt_token: str | None = None, basic_auth: tuple[str, str] | None = None, user_agent: str | None = None, backend: Literal["rest", "sql"] = "rest"):
         """Create a Beacon API client.
 
         Args:
@@ -35,9 +36,13 @@ class Client:
             user_agent: Optional ``User-Agent`` header identifying your application.
                 Recommended on shared/public nodes so requests can be attributed,
                 e.g. ``"my-app/1.0 (you@example.com)"``.
+            backend: Selects how discovery is resolved. ``"rest"`` (default) uses
+                the ``/api/*`` endpoints. ``"sql"`` resolves tables/datasets/schemas
+                via SQL (``SHOW TABLES``, ``DESCRIBE``, the ``list_datasets()``
+                table function) and requires a Beacon Node with SQL enabled.
 
         Raises:
-            ValueError: If ``basic_auth`` is not a 2-item tuple.
+            ValueError: If ``basic_auth`` is not a 2-item tuple, or ``backend`` is invalid.
             Exception: When the Beacon Node health endpoint cannot be reached.
         """
         if proxy_headers is None:
@@ -53,8 +58,8 @@ class Client:
             if not isinstance(basic_auth, tuple) or len(basic_auth) != 2:
                 raise ValueError("Basic auth must be a tuple of (username, password)")
             proxy_headers['Authorization'] = f'{requests.auth._basic_auth_str(*basic_auth)}' # type: ignore
-        
-        self.session = BaseBeaconSession(url, proxy_headers=proxy_headers)
+
+        self.session = BaseBeaconSession(url, proxy_headers=proxy_headers, backend=backend)
         
         if self.check_status():
             raise Exception("Failed to connect to server")
@@ -102,22 +107,47 @@ class Client:
     def list_tables(self) -> dict[str,DataTable]:
         """Retrieve all logical tables available on the Beacon Node.
 
+        With the ``sql`` backend this runs ``SHOW TABLES``; with the ``rest``
+        backend it calls ``/api/tables``. Either way it returns rich
+        :class:`DataTable` helpers you can build queries from.
+
         Returns:
             dict[str, DataTable]: Mapping of table name to :class:`DataTable` helper.
         """
-        response = self.session.get("/api/tables")
-        if response.status_code != 200:
-            raise Exception(f"Failed to get tables: {response.text}")
-        tables = response.json()
-        
+        if self.session.backend == "sql":
+            table_names = self._show_tables()
+        else:
+            response = self.session.get("/api/tables")
+            if response.status_code != 200:
+                raise Exception(f"Failed to get tables: {response.text}")
+            table_names = response.json()
+
         data_tables = {}
-        for table in tables:
+        for table in table_names:
             data_tables[table] = DataTable(
                 http_session=self.session,
                 table_name=table,
             )
-        
+
         return data_tables
+
+    def _show_tables(self) -> list[str]:
+        """Return the available table names via SQL ``SHOW TABLES``."""
+        result = self.sql_query("SHOW TABLES").to_arrow_table()
+        columns = result.column_names
+        name_col = "table_name" if "table_name" in columns else columns[-1]
+        return result.column(name_col).to_pylist()
+
+    def describe_table(self, table_name: str) -> pa.Schema:
+        """Describe a table's schema via SQL ``DESCRIBE <table>``.
+
+        Args:
+            table_name: Name of the table to describe.
+
+        Returns:
+            pa.Schema: The table schema as a PyArrow ``Schema``.
+        """
+        return schema_from_describe(self.session, table_name)
     
     def list_datasets(self, pattern: str | None = None, limit : int | None = None, offset: int | None = None, force=False) -> dict[str, Dataset]:
         """Enumerate datasets registered with the Beacon node.
@@ -136,7 +166,10 @@ class Client:
         
         if not force and not self.session.version_at_least(1,4,0):
             raise Exception("Listing datasets requires Beacon server version 1.4.0 or higher")
-        
+
+        if self.session.backend == "sql":
+            return self._list_datasets_sql(pattern=pattern, limit=limit, offset=offset)
+
         response = self.session.get("/api/list-datasets", params={
             "pattern": pattern,
             "limit": limit,
@@ -149,11 +182,47 @@ class Client:
         for dataset in datasets:
             file_path = dataset['file_path']
             file_format = dataset['format']
-            
+
             dataset_objects[file_path] = Dataset(
                 http_session=self.session,
                 file_path=file_path,
                 file_format=file_format
+            )
+        return dataset_objects
+
+    def _list_datasets_sql(self, pattern: str | None = None, limit: int | None = None, offset: int | None = None) -> dict[str, Dataset]:
+        """List datasets via the SQL ``list_datasets()`` table function.
+
+        The ``pattern`` glob is applied client-side with :mod:`fnmatch` because the
+        table function does not accept a glob argument; ``limit``/``offset`` are
+        pushed down into the SQL statement.
+        """
+        sql = "SELECT * FROM list_datasets()"
+        if limit is not None:
+            sql += f" LIMIT {int(limit)}"
+        if offset is not None:
+            sql += f" OFFSET {int(offset)}"
+
+        result = self.sql_query(sql).to_arrow_table()
+        columns = result.column_names
+        path_col = "file_name" if "file_name" in columns else columns[0]
+        format_col = "file_format" if "file_format" in columns else None
+
+        file_paths = result.column(path_col).to_pylist()
+        file_formats = (
+            result.column(format_col).to_pylist()
+            if format_col is not None
+            else [None] * len(file_paths)
+        )
+
+        dataset_objects: dict[str, Dataset] = {}
+        for file_path, file_format in zip(file_paths, file_formats):
+            if pattern is not None and not fnmatch.fnmatch(file_path, pattern):
+                continue
+            dataset_objects[file_path] = Dataset(
+                http_session=self.session,
+                file_path=file_path,
+                file_format=file_format,
             )
         return dataset_objects
     
@@ -355,6 +424,7 @@ class Client:
         if response.status_code != 200:
             raise Exception(f"Failed to delete dataset: {response.text}")
         
+    @deprecated(version="1.4.0", reason="Tables are now managed via SQL DDL. Use client.sql_query(\"CREATE EXTERNAL TABLE ...\") instead. This method will be removed in future versions.")
     def create_logical_table(self, table_name: str, dataset_glob_paths: list[str], file_format: str, description: str | None = None, force=False, **kwargs) -> None:
         """Create a new logical table on the Beacon Node.
 
@@ -393,6 +463,7 @@ class Client:
         if response.status_code != 200:
             raise Exception(f"Failed to create table: {response.text}")
         
+    @deprecated(version="1.4.0", reason="Tables are now managed via SQL DDL. Use client.sql_query(\"DROP TABLE ...\") instead. This method will be removed in future versions.")
     def delete_table(self, table_name: str, force=False) -> None:
         """Delete a logical table from the Beacon Node.
 
