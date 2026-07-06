@@ -42,6 +42,11 @@ dependencies = [
   "deprecated >= 1.2.14",
 ]
 
+[project.optional-dependencies]
+test = [
+  "pytest>=7.0",
+]
+
 # [tool.setuptools]
 # packages = ["beacon_api"]  # OR use find if you prefer
 
@@ -50,6 +55,10 @@ include = ["beacon_api*"]
 
 [tool.setuptools.package-data]
 "beacon_api" = ["py.typed", "*.pyi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
 
 [tool.cibuildwheel]
 # Build all CPython versions (skip PyPy, Python 3.6)
