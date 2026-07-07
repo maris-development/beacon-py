@@ -96,14 +96,20 @@ class DataTable:
         self.http_session = http_session
         self.table_name = table_name
         
-        # Now query the server for the table type and description
-        # api/table-config?table_name={table_name}
-        response = self.http_session.get("/api/table-config", params={"table_name": table_name})
-        if response.status_code != 200:
-            raise Exception(f"Failed to get table config: {response.text}")
-        table_config = response.json()
-        self.table_type = table_config.get("table_type", "unknown")
-        self.description = table_config.get("description", None)
+        if self.http_session.version_at_least(1,7,0):
+            self.table_type = None
+            self.description = None
+            
+            response = self.http_session.get("/api/table-schema", params={"table_name": table_name})
+            if response.status_code != 200:
+                raise Exception(f"Failed to initialize DataTable: {response.text}")
+        else:
+            response = self.http_session.get("/api/table-config", params={"table_name": table_name})
+            if response.status_code != 200:
+                raise Exception(f"Failed to get table config: {response.text}")
+            table_config = response.json()
+            self.table_type = table_config.get("table_type", "unknown")
+            self.description = table_config.get("description", None)
 
     def get_table_description(self) -> str:
         """Get the description of the table"""
@@ -136,7 +142,7 @@ class DataTable:
 
         return pa.schema(fields)
     
-    def get_table_type(self) -> Union[dict, str]:
+    def get_table_type(self) -> Union[dict, str] | None:
         """Get the type of the table"""
         return self.table_type
     
