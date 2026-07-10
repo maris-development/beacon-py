@@ -13,6 +13,7 @@ import os
 from typing import Any, Callable, Dict, Generic, Literal, Sequence, TypeVar, overload
 
 from .session import BaseBeaconSession
+from .table import _resolve_arrow_field
 from .query import (
     JSONQuery,
     From,
@@ -89,7 +90,9 @@ class Dataset(Generic[_FormatT]):
             RuntimeError: If the HTTP request fails.
             ValueError: When the response body is not valid JSON or the
                 decoded value is not a JSON object.
-            Exception: For unsupported field types surfaced by Beacon.
+
+        Unsupported field types no longer raise: they are surfaced as
+        ``null``-typed fields with a warning (see :func:`_resolve_arrow_field`).
         """
 
         response = self.session.get("/api/dataset-schema", params={"file": self.file_path})
@@ -104,26 +107,11 @@ class Dataset(Generic[_FormatT]):
         if not isinstance(schema_data, dict):
             raise ValueError("Dataset schema response must be a JSON object")
 
-        fields = []
-        
-        for field in schema_data['fields']:
-            field_type = field['data_type']
-            
-            if isinstance(field_type, str):
-                fields.append(pa.field(field['name'], field_type))
-            
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Second", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('s')))
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Millisecond", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('ms')))
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Microsecond", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('us')))
-            elif isinstance(field_type, dict) and field_type.get("Timestamp") == ["Nanosecond", None]:
-                fields.append(pa.field(field['name'], pa.timestamp('ns')))
-            
-            else:
-                raise Exception(f"Unsupported data type for field {field['name']}: {field_type}")
-        
+        fields = [
+            _resolve_arrow_field(field['name'], field['data_type'])
+            for field in schema_data['fields']
+        ]
+
         return pa.schema(fields)
 
     def get_file_extension(self) -> str:

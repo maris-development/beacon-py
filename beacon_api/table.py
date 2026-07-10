@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime
 import re
+import warnings
 from typing import Optional, Union
 import pyarrow as pa
 
@@ -56,6 +57,26 @@ _TIMESTAMP_STR_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Some Arrow/DataFusion type spellings (e.g. the newer "view" and "large"
+# variants) are not accepted by ``pyarrow.type_for_alias``. Map their
+# lower-cased spellings to the constructor that builds them. ``getattr`` guards
+# keep this importable on older pyarrow builds that lack the view types.
+_string_view = getattr(pa, "string_view", pa.string)
+_binary_view = getattr(pa, "binary_view", pa.binary)
+_ARROW_TYPE_FACTORIES = {
+    "utf8view": _string_view,
+    "utf8_view": _string_view,
+    "stringview": _string_view,
+    "string_view": _string_view,
+    "largeutf8": pa.large_string,
+    "large_utf8": pa.large_string,
+    "binaryview": _binary_view,
+    "binary_view": _binary_view,
+    "largebinary": pa.large_binary,
+    "large_binary": pa.large_binary,
+    "boolean": pa.bool_,
+}
+
 
 def _parse_arrow_type(field_type: Union[str, dict]) -> Optional[pa.DataType]:
     """Convert a Beacon schema ``data_type`` into a pyarrow ``DataType``.
@@ -81,12 +102,37 @@ def _parse_arrow_type(field_type: Union[str, dict]) -> Optional[pa.DataType]:
             if pa_unit is not None:
                 return pa.timestamp(pa_unit, tz=match.group("tzname"))
             return None
+        normalized = field_type.strip().lower()
+        factory = _ARROW_TYPE_FACTORIES.get(normalized)
+        if factory is not None:
+            return factory()
         try:
-            return pa.type_for_alias(field_type.lower())
+            return pa.type_for_alias(normalized)
         except ValueError:
             return None
 
     return None
+
+
+def _resolve_arrow_field(name: str, data_type: Union[str, dict]) -> pa.Field:
+    """Build a :class:`pyarrow.Field`, tolerating unknown data types.
+
+    Attempts to translate ``data_type`` into a pyarrow type. When the type is
+    not recognised (e.g. an Arrow spelling this client does not yet map), it
+    falls back to a ``null``-typed field and emits a warning instead of raising,
+    so a single unsupported column no longer breaks schema discovery for the
+    whole table/dataset.
+    """
+    pa_type = _parse_arrow_type(data_type)
+    if pa_type is None:
+        warnings.warn(
+            f"Unsupported Arrow data type {data_type!r} for field {name!r}; "
+            "falling back to a null-typed field.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        pa_type = pa.null()
+    return pa.field(str(name), pa_type)
 
 class DataTable:
     """Represents a data table available on the Beacon Node."""
@@ -132,13 +178,10 @@ class DataTable:
             raise Exception(f"Failed to get table schema: {response.text}")
         
         schema_data = response.json()
-        fields = []
-
-        for field in schema_data['fields']:
-            pa_type = _parse_arrow_type(field['data_type'])
-            if pa_type is None:
-                raise Exception(f"Unsupported data type for field {field['name']}: {field['data_type']}")
-            fields.append(pa.field(field['name'], pa_type))
+        fields = [
+            _resolve_arrow_field(field['name'], field['data_type'])
+            for field in schema_data['fields']
+        ]
 
         return pa.schema(fields)
     
